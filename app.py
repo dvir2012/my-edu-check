@@ -50,7 +50,7 @@ if api_key:
                 try:
                     img = Image.open(uploaded_file)
                     # שימוש במודל Flash למהירות מקסימלית
-                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    model = genai.GenerativeModel('gemini-1.5-flash-latest')
                     prompt = f"Role: Teacher. Task: Grade the student's answer based on this rubric: {rubric}. Language: {lang}."
                     response = model.generate_content([prompt, img])
                     st.success("✅ Done / בוצע")
