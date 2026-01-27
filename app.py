@@ -23,7 +23,7 @@ if st.button("בדוק מבחן"):
                 img = Image.open(uploaded_file)
                 
                 # שימוש במודל החזק ביותר לניתוח תמונות
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                model = genai.GenerativeModel('gemini-pro-vision'
                 
                 # הפרומפט המשופר - כאן קורה הקסם
                 instructions = f"""
