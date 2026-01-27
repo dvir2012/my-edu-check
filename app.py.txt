@@ -1,0 +1,27 @@
+import streamlit as st
+import google.generativeai as genai
+from PIL import Image
+
+st.set_page_config(page_title="EduCheck AI")
+st.title("?? EduCheck AI - בדיקת מבחנים")
+
+# הגדרת המפתח מה-Secrets של המערכת
+if "GOOGLE_API_KEY" in st.secrets:
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+else:
+    st.error("שגיאה: מפתח ה-API לא מוגדר במערכת.")
+
+rubric = st.text_area("הכנס מחוון (מה התשובה הנכונה?):")
+uploaded_file = st.file_uploader("העלה תמונה של המבחן:", type=['png', 'jpg', 'jpeg'])
+
+if st.button("בדוק עכשיו"):
+    if uploaded_file and rubric:
+        with st.spinner('מנתח...'):
+            img = Image.open(uploaded_file)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            prompt = f"השווה את התשובה בתמונה למחוון: {rubric}. תן ציון והסבר קצר בעברית."
+            response = model.generate_content([prompt, img])
+            st.markdown("### תוצאה:")
+            st.write(response.text)
+    else:
+        st.warning("נא למלא את כל השדות.")
