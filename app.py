@@ -3,7 +3,7 @@ import google.generativeai as genai
 from PIL import Image
 import os
 
-st.set_page_config(page_title="EduCheck Pro - Synced AI", layout="wide")
+st.set_page_config(page_title="EduCheck Pro - OCR & Quiz", layout="wide")
 
 if not os.path.exists("students_data"):
     os.makedirs("students_data")
@@ -15,9 +15,9 @@ else:
 
 # בחירת שפה
 lang = st.sidebar.selectbox("Language", ["עברית", "English"])
-t_check = "בדוק מבחן 🚀" if lang == "עברית" else "Analyze Exam 🚀"
+t_check = "בדוק מבחן (פתוח/אמריקאי) 🚀" if lang == "עברית" else "Analyze Exam 🚀"
 
-st.title("📝 EduCheck Pro")
+st.title("📝 EduCheck Pro - בודק מבחנים חכם")
 
 # ניהול מאגר תלמידים
 st.sidebar.header("מאגר תלמידים")
@@ -29,9 +29,9 @@ sample_files = []
 
 if action == "רישום חדש":
     new_name = st.sidebar.text_input("שם התלמיד:")
-    s1 = st.sidebar.file_uploader("חלק 1 (א-ח / A-H)", type=['png', 'jpg', 'jpeg'], key="s1")
-    s2 = st.sidebar.file_uploader("חלק 2 (ט-ע / I-P)", type=['png', 'jpg', 'jpeg'], key="s2")
-    s3 = st.sidebar.file_uploader("חלק 3 (פ-ת / Q-Z)", type=['png', 'jpg', 'jpeg'], key="s3")
+    s1 = st.sidebar.file_uploader("חלק 1 (א-ח)", type=['png', 'jpg', 'jpeg'], key="s1")
+    s2 = st.sidebar.file_uploader("חלק 2 (ט-ע)", type=['png', 'jpg', 'jpeg'], key="s2")
+    s3 = st.sidebar.file_uploader("חלק 3 (פ-ת)", type=['png', 'jpg', 'jpeg'], key="s3")
     
     if st.sidebar.button("שמור"):
         if new_name and s1 and s2 and s3:
@@ -49,38 +49,46 @@ else:
         for i in range(3):
             img_path = os.path.join(path, f"sample_{i}.png")
             if os.path.exists(img_path):
-                sample_files.append(Image.open(img_path))
+                sample_images = Image.open(img_path)
+                sample_files.append(sample_images)
 
 st.divider()
 col1, col2 = st.columns(2)
 with col1:
-    exam_file = st.file_uploader("העלה את המבחן:", type=['png', 'jpg', 'jpeg'])
+    exam_file = st.file_uploader("העלה את המבחן (כתב יד או אמריקאי):", type=['png', 'jpg', 'jpeg'])
 with col2:
-    rubric = st.text_area("מחוון (התשובה הנכונה):", height=150)
+    rubric = st.text_area("מחוון (למבחן אמריקאי: רשום 1.א, 2.ג וכו'):", height=150)
 
 if st.button(t_check):
     if selected_student and sample_files and exam_file and rubric:
-        with st.spinner("מסנכרן בין מאגר האותיות למבחן..."):
+        with st.spinner("מנתח מבחן ומסנכרן אותיות..."):
             try:
-                # שימוש במודל יציב ומהיר
+                # ניסיון להשתמש בשם מודל הכי נפוץ
                 model = genai.GenerativeModel('gemini-1.5-flash')
                 img_exam = Image.open(exam_file)
                 
-                # יצירת תוכן מסונכרן - כל תמונה מקבלת תיאור תפקיד
-                content = [
-                    "INSTRUCTION: You are a synced handwriting analyzer.",
-                    "REFERENCE IMAGE 1 (Letters א-ח / A-H):", sample_files[0],
-                    "REFERENCE IMAGE 2 (Letters ט-ע / I-P):", sample_files[1],
-                    "REFERENCE IMAGE 3 (Letters פ-ת / Q-Z):", sample_files[2],
-                    "TASK: Use the references above to decode this exam image:", img_exam,
-                    f"CONTEXT: After decoding, compare to this rubric: {rubric}. Answer in Hebrew."
-                ]
+                prompt = f"""
+                You are an expert teacher's assistant.
                 
-                response = model.generate_content(content)
-                st.success("הפענוח הושלם!")
+                STEP 1: Learn this student's ({selected_student}) handwriting from the first 3 reference images.
+                STEP 2: Analyze the last image (the exam). 
+                - If it's a written answer: use the reference to decode the handwriting.
+                - If it's a Multiple Choice (American) exam: detect which option is circled or marked with X.
+                
+                RUBRIC: {rubric}
+                
+                OUTPUT IN HEBREW:
+                1. Transcription of what the student wrote or marked.
+                2. Check accuracy against the rubric.
+                3. Final Grade.
+                """
+                
+                response = model.generate_content([prompt] + sample_files + [img_exam])
+                st.success("הבדיקה הושלמה!")
+                st.markdown("### תוצאות:")
                 st.write(response.text)
                 
             except Exception as e:
-                st.error(f"שגיאה: {e}")
+                st.error(f"שגיאה: {e}. וודא שמפתח ה-API תקין.")
     else:
-        st.warning("חסרים נתונים לבדיקה.")
+        st.warning("אנא וודא שבחרת תלמיד, העלית את המבחן והזנת מחוון.")
