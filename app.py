@@ -1,96 +1,108 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
-from streamlit_gsheets import GSheetsConnection
-import pandas as pd
+import os
 
-st.set_page_config(page_title="EduCheck Pro - Multi-Lang", layout="wide")
+# הגדרות דף
+st.set_page_config(page_title="EduCheck Pro - מאגר קבוע", layout="wide")
 
-# חיבור לגוגל שיטס (הזיכרון הקבוע)
-try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    existing_data = conn.read(spreadsheet=st.secrets["gsheets_url"])
-except:
-    existing_data = pd.DataFrame(columns=["student_name"])
+# יצירת תיקייה ראשית לאחסון תמונות התלמידים אם היא לא קיימת
+if not os.path.exists("students_data"):
+    os.makedirs("students_data")
 
-# הגדרת Gemini
-genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+# הגדרת ה-API של Gemini
+if "GOOGLE_API_KEY" in st.secrets:
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+else:
+    st.error("חסר מפתח API ב-Secrets")
 
-st.title("📝 EduCheck Pro - עברית ואנגלית")
+st.title("📝 EduCheck Pro - מאגר תלמידים קבוע")
 
 # סרגל צדי - ניהול תלמידים
-st.sidebar.header("👥 מאגר תלמידים")
-action = st.sidebar.radio("פעולה:", ["בחירת תלמיד", "רישום תלמיד חדש"])
+st.sidebar.header("👥 ניהול תלמידים")
+action = st.sidebar.radio("בחר פעולה:", ["בחירת תלמיד קיים", "רישום תלמיד חדש"])
+
+# רשימת התלמידים הקיימים (לפי התיקיות שנוצרו)
+existing_students = os.listdir("students_data")
+
+selected_student = None
+sample_images = []
 
 if action == "רישום תלמיד חדש":
-    new_name = st.sidebar.text_input("שם התלמיד:")
-    if st.sidebar.button("שמור תלמיד"):
-        if new_name:
-            new_row = pd.DataFrame([{"student_name": new_name}])
-            updated_df = pd.concat([existing_data, new_row], ignore_index=True)
-            conn.update(spreadsheet=st.secrets["gsheets_url"], data=updated_df)
-            st.sidebar.success(f"התלמיד {new_name} נשמר!")
+    new_student_name = st.sidebar.text_input("שם התלמיד החדש:")
+    st.sidebar.write("העלה 3 תמונות לימוד (א-ת, A-Z):")
+    s1 = st.sidebar.file_uploader("תמונה 1:", type=['png', 'jpg', 'jpeg'], key="new_s1")
+    s2 = st.sidebar.file_uploader("תמונה 2:", type=['png', 'jpg', 'jpeg'], key="new_s2")
+    s3 = st.sidebar.file_uploader("תמונה 3:", type=['png', 'jpg', 'jpeg'], key="new_s3")
+    
+    if st.sidebar.button("שמור תלמיד במערכת"):
+        if new_student_name and s1 and s2 and s3:
+            # יצירת תיקייה לתלמיד
+            path = os.path.join("students_data", new_student_name)
+            if not os.path.exists(path):
+                os.makedirs(path)
+            
+            # שמירת התמונות פיזית בשרת
+            for i, s in enumerate([s1, s2, s3]):
+                with open(os.path.join(path, f"sample_{i}.png"), "wb") as f:
+                    f.write(s.getbuffer())
+            
+            st.sidebar.success(f"התלמיד {new_student_name} נשמר בהצלחה!")
             st.rerun()
+        else:
+            st.sidebar.error("חובה להזין שם ולהעלות את כל 3 התמונות.")
+
 else:
-    if not existing_data.empty:
-        student_list = existing_data["student_name"].tolist()
-        selected_student = st.sidebar.selectbox("בחר תלמיד:", student_list)
+    if existing_students:
+        selected_student = st.sidebar.selectbox("בחר תלמיד:", existing_students)
+        st.sidebar.info(f"טוען נתוני כתב יד עבור: {selected_student}")
+        
+        # טעינת התמונות השמורות של התלמיד שנבחר
+        path = os.path.join("students_data", selected_student)
+        for i in range(3):
+            img_path = os.path.join(path, f"sample_{i}.png")
+            if os.path.exists(img_path):
+                sample_images.append(Image.open(img_path))
     else:
-        st.sidebar.warning("המאגר ריק.")
+        st.sidebar.warning("אין תלמידים רשומים. בחר 'רישום תלמיד חדש'.")
 
+# מסך ראשי - בדיקת המבחן
 st.divider()
+col1, col2 = st.columns(2)
 
-# שלב 1: לימוד כתב היד (3 תמונות)
-st.header("🔤 שלב 1: לימוד הכתב (עברית/אנגלית)")
-st.write("העלה 3 תמונות שמכילות את כל האותיות (א-ת וגם A-Z) ומספרים:")
+with col1:
+    st.header("📸 העלאת המבחן")
+    exam_file = st.file_uploader("צילום המבחן (עברית/אנגלית):", type=['png', 'jpg', 'jpeg'])
 
-col_a, col_b, col_c = st.columns(3)
-with col_a:
-    sample1 = st.file_uploader("תמונה 1 (למשל א-ח / A-H):", type=['png', 'jpg', 'jpeg'])
-with col_b:
-    sample2 = st.file_uploader("תמונה 2 (למשל ט-ע / I-P):", type=['png', 'jpg', 'jpeg'])
-with col_c:
-    sample3 = st.file_uploader("תמונה 3 (למשל פ-ת / Q-Z):", type=['png', 'jpg', 'jpeg'])
+with col2:
+    st.header("🎯 המחוון")
+    rubric = st.text_area("התשובה המצופה:", height=150)
 
-# שלב 2: המבחן
-st.header("📄 שלב 2: בדיקת המבחן")
-col_ex, col_rub = st.columns(2)
-with col_ex:
-    exam_file = st.file_uploader("העלה את דף המבחן:", type=['png', 'jpg', 'jpeg'])
-with col_rub:
-    rubric = st.text_area("מחוון תשובות (כתוב כאן מה התשובה הנכונה):", height=150)
-
-if st.button("נתח מבחן וחשב ציון 🚀"):
-    if sample1 and exam_file and rubric:
-        with st.spinner('ה-AI לומד את הכתב ומנתח...'):
+if st.button("בדוק מבחן עבור התלמיד 🚀"):
+    if selected_student and sample_images and exam_file and rubric:
+        with st.spinner(f'מנתח לפי כתב היד של {selected_student}...'):
             try:
                 model = genai.GenerativeModel('gemini-1.5-pro')
+                img_exam = Image.open(exam_file)
                 
-                # הכנת התמונות למודל
-                images = [Image.open(sample1)]
-                if sample2: images.append(Image.open(sample2))
-                if sample3: images.append(Image.open(sample3))
-                
-                exam_img = Image.open(exam_file)
-                images.append(exam_img)
+                # יצירת רשימת הקבצים למודל: 3 תמונות לימוד + תמונת המבחן
+                inputs = sample_images + [img_exam]
                 
                 prompt = f"""
-                אתה עוזר הוראה מקצועי. קיבלת תמונות של כתב היד של התלמיד (בעברית ובאנגלית).
-                1. למד את הכתב מהתמונות הראשונות.
-                2. קרא את המבחן בתמונה האחרונה.
-                3. השווה למחוון: {rubric}
+                משימה: פענוח ובדיקת מבחן.
+                התמונות הראשונות הן דוגמאות לכתב היד של התלמיד (עברית ואנגלית). למד אותן היטב.
+                התמונה האחרונה היא המבחן.
                 
-                ענה בעברית:
-                - תמלול התשובה של התלמיד.
-                - האם התשובה נכונה?
-                - ציון סופי.
+                1. תמלל את מה שכתוב במבחן.
+                2. השווה למחוון: {rubric}
+                3. תן ציון והסבר בעברית.
                 """
                 
-                response = model.generate_content([prompt] + images)
-                st.success("הפענוח הושלם!")
-                st.markdown("### תוצאות הבדיקה:")
+                response = model.generate_content([prompt] + inputs)
+                st.success("הבדיקה הושלמה!")
+                st.markdown("### תוצאות:")
                 st.write(response.text)
             except Exception as e:
                 st.error(f"שגיאה: {e}")
     else:
-        st.warning("נא להעלות לפחות את התמונה הראשונה של הכתב, את המבחן ולמלא מחוון.")
+        st.warning("וודא שבחרת תלמיד קיים (עם תמונות שמורות), העלית מבחן והזנת מחוון.")
