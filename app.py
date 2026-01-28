@@ -1,89 +1,67 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
+from streamlit_gsheets import GSheetsConnection
+import pandas as pd
 
-st.set_page_config(page_title="EduCheck Pro - מאגר תלמידים", layout="wide")
+st.set_page_config(page_title="EduCheck Pro", layout="wide")
 
-# אתחול מאגר התלמידים בזיכרון (Session State)
-if 'students_db' not in st.session_state:
-    st.session_state['students_db'] = {}
+# חיבור לגוגל שיטס
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    existing_data = conn.read(spreadsheet=st.secrets["gsheets_url"])
+except:
+    existing_data = pd.DataFrame(columns=["student_name"])
 
-# הגדרת ה-API
-if "GOOGLE_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-else:
-    st.error("יש להגדיר API Key ב-Secrets")
+# הגדרת Gemini
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-st.title("📝 EduCheck Pro - ניהול תלמידים חכם")
+st.title("📝 EduCheck Pro - מאגר תלמידים בענן")
 
-# סרגל צדי - ניהול תלמידים
-st.sidebar.header("👥 ניהול מאגר תלמידים")
+# סרגל צדי
+st.sidebar.header("📁 ניהול תלמידים")
+action = st.sidebar.radio("מה ברצונך למשות?", ["בחירת תלמיד קיים", "הוספת תלמיד חדש"])
 
-# בחירה בין "תלמיד קיים" ל"הוספת תלמיד חדש"
-mode = st.sidebar.radio("בחר פעולה:", ["בחר תלמיד קיים", "הוסף תלמיד חדש למערכת"])
-
-alphabet = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ', 'ק', 'ר', 'ש', 'ת']
-
-if mode == "הוסף תלמיד חדש למערכת":
-    new_student_name = st.sidebar.text_input("שם התלמיד החדש:")
-    st.sidebar.write("העלה דוגמאות כתב יד:")
-    
-    current_letter_images = {}
-    for letter in alphabet:
-        with st.sidebar.expander(f"אות {letter}"):
-            img = st.file_uploader(f"העלה {letter}", type=['png', 'jpg', 'jpeg'], key=f"new_{letter}")
-            if img:
-                current_letter_images[letter] = Image.open(img)
-    
+if action == "הוספת תלמיד חדש":
+    new_name = st.sidebar.text_input("שם התלמיד:")
     if st.sidebar.button("שמור תלמיד במאגר"):
-        if new_student_name and current_letter_images:
-            st.session_state['students_db'][new_student_name] = current_letter_images
-            st.sidebar.success(f"התלמיד {new_student_name} נשמר!")
-        else:
-            st.sidebar.error("יש להזין שם ולהעלות לפחות אות אחת.")
+        if new_name:
+            new_row = pd.DataFrame([{"student_name": new_name}])
+            updated_df = pd.concat([existing_data, new_row], ignore_index=True)
+            conn.update(spreadsheet=st.secrets["gsheets_url"], data=updated_df)
+            st.sidebar.success(f"התלמיד {new_name} נשמר באקסל!")
+            st.rerun()
 
 else:
-    all_students = list(st.session_state['students_db'].keys())
-    if all_students:
-        selected_student = st.sidebar.selectbox("בחר תלמיד מהרשימה:", all_students)
-        st.sidebar.info(f"טוען נתוני כתב יד עבור: {selected_student}")
-        current_letter_images = st.session_state['students_db'][selected_student]
+    if not existing_data.empty:
+        student_list = existing_data["student_name"].tolist()
+        selected_student = st.sidebar.selectbox("בחר תלמיד מהרשימה:", student_list)
     else:
-        st.sidebar.warning("אין תלמידים במאגר. הוסף תלמיד חדש.")
-        current_letter_images = {}
+        st.sidebar.warning("אין תלמידים רשומים.")
 
-# מסך ראשי - בדיקת המבחן
-st.divider()
+# העלאת דוגמת הכתב (חד פעמי לכל סשן)
+st.subheader(f"📖 שלב 1: לימוד כתב היד")
+sample_file = st.file_uploader("העלה דף עם אותיות א-ת (כדי שה-AI יכיר את הכתב):", type=['png', 'jpg', 'jpeg'])
+
+# בדיקת המבחן
+st.subheader(f"✍️ שלב 2: בדיקת המבחן")
 col1, col2 = st.columns(2)
-
 with col1:
-    st.header("📸 העלאת המבחן")
-    exam_img_file = st.file_uploader("צילום המבחן:", type=['png', 'jpg', 'jpeg'])
-
+    exam_file = st.file_uploader("העלה צילום מבחן:", type=['png', 'jpg', 'jpeg'])
 with col2:
-    st.header("🎯 המחוון")
-    rubric = st.text_area("התשובה המצופה:", height=150)
+    rubric = st.text_area("מחוון (התשובה הנכונה):")
 
-if st.button("בדוק מבחן עבור התלמיד שנבחר 🚀"):
-    if exam_img_file and rubric and current_letter_images:
-        with st.spinner('מנתח כתב יד ספציפי...'):
-            try:
-                model = genai.GenerativeModel('gemini-1.5-pro')
-                content_to_send = []
-                
-                instructions = "השתמש בדוגמאות האותיות הבאות כדי ללמוד את כתב היד של התלמיד:\n"
-                for letter, img in current_letter_images.items():
-                    instructions += f"התמונה הזו היא האות {letter}\n"
-                    content_to_send.append(img)
-                
-                exam_img = Image.open(exam_img_file)
-                content_to_send.append(exam_img)
-                content_to_send.append(f"{instructions}\nעכשיו פענח את המבחן והשווה למחוון: {rubric}")
-                
-                response = model.generate_content(content_to_send)
-                st.success("הבדיקה הושלמה!")
-                st.write(response.text)
-            except Exception as e:
-                st.error(f"שגיאה: {e}")
+if st.button("הפעל בדיקה 🚀"):
+    if sample_file and exam_file and rubric:
+        with st.spinner('מנתח...'):
+            model = genai.GenerativeModel('gemini-1.5-pro')
+            img_sample = Image.open(sample_file)
+            img_exam = Image.open(exam_file)
+            
+            prompt = f"למד את הכתב מהתמונה הראשונה ופענח את המבחן בשנייה. השווה למחוון: {rubric}. ענה בעברית."
+            response = model.generate_content([prompt, img_sample, img_exam])
+            
+            st.success("תוצאות:")
+            st.write(response.text)
     else:
-        st.warning("וודא שבחרת תלמיד עם אותיות, העלית מבחן וכתבת מחוון.")
+        st.warning("נא להעלות את כל הקבצים הנדרשים.")
