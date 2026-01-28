@@ -2,50 +2,50 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 
-st.set_page_config(page_title="EduCheck AI - מומחה כתב יד", layout="centered")
-st.title("📝 EduCheck AI")
-st.subheader("סורק מבחנים חכם (גם לכתב יד מאתגר)")
+st.set_page_config(page_title="EduCheck AI - לומד כתב יד", layout="wide")
+st.title("📝 EduCheck AI - לומד את כתב היד שלך")
 
-# הגדרת המפתח
+# וידוא מפתח API
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
-    st.error("אנא הגדר מפתח API ב-Secrets")
+    st.error("חסר מפתח API בהגדרות!")
 
-# ממשק המשתמש
-rubric = st.text_area("מה התשובה הנכונה? (המחוון):", height=150)
-uploaded_file = st.file_uploader("צלם או העלה את המבחן:", type=['png', 'jpg', 'jpeg'])
+col1, col2 = st.columns(2)
 
-if st.button("בדוק מבחן"):
-    if uploaded_file and rubric:
-        with st.spinner('מפענח כתב יד ומנתח נתונים...'):
+with col1:
+    st.header("1. לימוד הכתב")
+    handwriting_sample = st.file_uploader("העלה דף עם דוגמאות לכתב שלך (למשל א', ב', ג'):", type=['png', 'jpg', 'jpeg'], key="sample")
+
+with col2:
+    st.header("2. המבחן לבדיקה")
+    exam_image = st.file_uploader("העלה את דף המבחן שצריך לבדוק:", type=['png', 'jpg', 'jpeg'], key="exam")
+
+rubric = st.text_area("מה התשובה הנכונה? (המחוון):")
+
+if st.button("נתח ולמד כתב יד 🚀"):
+    if handwriting_sample and exam_image and rubric:
+        with st.spinner('לומד את הכתב ומפענח את המבחן...'):
             try:
-                img = Image.open(uploaded_file)
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                sample_img = Image.open(handwriting_sample)
+                exam_img = Image.open(exam_image)
                 
-                # שימוש במודל החזק ביותר לניתוח תמונות
-                model = genai.GenerativeModel('gemini-pro-vision'
+                prompt = f"""
+                אתה עוזר הוראה חכם. קיבלת שתי תמונות:
+                1. תמונת דוגמה של כתב היד (כדי שתלמד איך הכותב כותב אותיות).
+                2. תמונת המבחן.
                 
-                # הפרומפט המשופר - כאן קורה הקסם
-                instructions = f"""
-                אתה מורה מומחה לפענוח כתב יד של תלמידים. 
-                משימה:
-                1. קרא בריכוז רב את הטקסט בכתב היד שבתמונה (גם אם הוא לא ברור או מרוח).
-                2. השווה את מה שכתוב בתמונה למחוון הבא: {rubric}.
-                3. תן ציון מ-0 עד 100.
-                4. הסבר בנקודות: מה התלמיד כתב נכון ומה חסר לו.
-                
-                חשוב: אם הכתב קשה לקריאה, נסה להבין מההקשר של המשפט מה המילה הסבירה ביותר שנכתבה.
-                ענה בעברית ברורה.
+                השתמש בדוגמה כדי לפענח את המבחן. 
+                השווה את התשובה שמצאת במבחן למחוון הבא: {rubric}.
+                תן ציון והסבר בפירוט מה נכתב במבחן.
                 """
                 
-                response = model.generate_content([instructions, img])
-                
-                st.success("הבדיקה הושלמה!")
-                st.markdown("---")
-                st.markdown("### 📋 תוצאות הבדיקה:")
+                response = model.generate_content([prompt, sample_img, exam_img])
+                st.success("הפענוח הושלם!")
+                st.markdown("### תוצאות:")
                 st.write(response.text)
-                
             except Exception as e:
-                st.error(f"שגיאה טכנית: {e}")
+                st.error(f"שגיאה: {e}")
     else:
-        st.warning("נא להזין מחוון ולהעלות תמונה.")
+        st.warning("בבקשה תעלה את שתי התמונות ותכתוב מחוון.")
