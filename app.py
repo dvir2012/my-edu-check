@@ -2,20 +2,11 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 
-# עיצוב דף רחב ויפה
-st.set_page_config(page_title="EduCheck Pro - מילון כתב יד", layout="wide")
+st.set_page_config(page_title="EduCheck Pro - מאגר תלמידים", layout="wide")
 
-# CSS לעיצוב כפתורים וממשק
-st.markdown("""
-    <style>
-    .main { background-color: #f5f7f9; }
-    .stButton>button { width: 100%; border-radius: 20px; height: 3em; background-color: #4CAF50; color: white; }
-    .sidebar .sidebar-content { background-image: linear-gradient(#2e7d32, #1b5e20); color: white; }
-    </style>
-    """, unsafe_allow_html=True)
-
-st.title("📝 EduCheck Pro")
-st.subheader("מערכת בדיקה חכמה עם לימוד אותיות אישי")
+# אתחול מאגר התלמידים בזיכרון (Session State)
+if 'students_db' not in st.session_state:
+    st.session_state['students_db'] = {}
 
 # הגדרת ה-API
 if "GOOGLE_API_KEY" in st.secrets:
@@ -23,67 +14,76 @@ if "GOOGLE_API_KEY" in st.secrets:
 else:
     st.error("יש להגדיר API Key ב-Secrets")
 
-# סרגל צדי ללימוד אותיות
-st.sidebar.header("🔤 סרגל לימוד אותיות")
-st.sidebar.write("העלה תמונה לכל אות כדי לאמן את ה-AI:")
+st.title("📝 EduCheck Pro - ניהול תלמידים חכם")
+
+# סרגל צדי - ניהול תלמידים
+st.sidebar.header("👥 ניהול מאגר תלמידים")
+
+# בחירה בין "תלמיד קיים" ל"הוספת תלמיד חדש"
+mode = st.sidebar.radio("בחר פעולה:", ["בחר תלמיד קיים", "הוסף תלמיד חדש למערכת"])
 
 alphabet = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ', 'ק', 'ר', 'ש', 'ת']
-letter_images = {}
 
-for letter in alphabet:
-    with st.sidebar.expander(f"אות {letter}"):
-        img = st.file_uploader(f"העלה {letter}", type=['png', 'jpg', 'jpeg'], key=f"letter_{letter}")
-        if img:
-            letter_images[letter] = Image.open(img)
+if mode == "הוסף תלמיד חדש למערכת":
+    new_student_name = st.sidebar.text_input("שם התלמיד החדש:")
+    st.sidebar.write("העלה דוגמאות כתב יד:")
+    
+    current_letter_images = {}
+    for letter in alphabet:
+        with st.sidebar.expander(f"אות {letter}"):
+            img = st.file_uploader(f"העלה {letter}", type=['png', 'jpg', 'jpeg'], key=f"new_{letter}")
+            if img:
+                current_letter_images[letter] = Image.open(img)
+    
+    if st.sidebar.button("שמור תלמיד במאגר"):
+        if new_student_name and current_letter_images:
+            st.session_state['students_db'][new_student_name] = current_letter_images
+            st.sidebar.success(f"התלמיד {new_student_name} נשמר!")
+        else:
+            st.sidebar.error("יש להזין שם ולהעלות לפחות אות אחת.")
 
-# מסך ראשי - העלאת המבחן
+else:
+    all_students = list(st.session_state['students_db'].keys())
+    if all_students:
+        selected_student = st.sidebar.selectbox("בחר תלמיד מהרשימה:", all_students)
+        st.sidebar.info(f"טוען נתוני כתב יד עבור: {selected_student}")
+        current_letter_images = st.session_state['students_db'][selected_student]
+    else:
+        st.sidebar.warning("אין תלמידים במאגר. הוסף תלמיד חדש.")
+        current_letter_images = {}
+
+# מסך ראשי - בדיקת המבחן
 st.divider()
-col_main1, col_main2 = st.columns([1, 1])
+col1, col2 = st.columns(2)
 
-with col_main1:
+with col1:
     st.header("📸 העלאת המבחן")
-    exam_img_file = st.file_uploader("צילום תשובת התלמיד:", type=['png', 'jpg', 'jpeg'])
+    exam_img_file = st.file_uploader("צילום המבחן:", type=['png', 'jpg', 'jpeg'])
 
-with col_main2:
+with col2:
     st.header("🎯 המחוון")
-    rubric = st.text_area("מה התשובה הנכונה?", height=150, placeholder="למשל: על התלמיד להסביר ש...")
+    rubric = st.text_area("התשובה המצופה:", height=150)
 
-if st.button("הפעל ניתוח חכם 🚀"):
-    if exam_img_file and rubric:
-        with st.spinner('מנתח את הכתב לפי המילון האישי שלך...'):
+if st.button("בדוק מבחן עבור התלמיד שנבחר 🚀"):
+    if exam_img_file and rubric and current_letter_images:
+        with st.spinner('מנתח כתב יד ספציפי...'):
             try:
-                # שימוש במודל החזק ביותר למשימה
                 model = genai.GenerativeModel('gemini-1.5-pro')
-                
-                # בניית רשימת הקבצים לשליחה ל-AI
                 content_to_send = []
                 
-                # הוספת האותיות שהועלו כ"מילון"
-                instructions = "אתה מומחה לפענוח כתב יד. השתמש בתמונות המצורפות כ'מילון' לכתב היד של הכותב:\n"
-                for letter, img in letter_images.items():
-                    instructions += f"התמונה הבאה היא האות {letter}.\n"
+                instructions = "השתמש בדוגמאות האותיות הבאות כדי ללמוד את כתב היד של התלמיד:\n"
+                for letter, img in current_letter_images.items():
+                    instructions += f"התמונה הזו היא האות {letter}\n"
                     content_to_send.append(img)
-                
-                # הוספת המבחן וההנחיה הסופית
-                final_prompt = f"""
-                {instructions}
-                כעת, השתמש במילון האותיות שלמדת כדי לקרוא את התמונה האחרונה (המבחן).
-                1. תמלל את הטקסט.
-                2. השווה למחוון: {rubric}
-                3. תן ציון והסבר בעברית.
-                """
                 
                 exam_img = Image.open(exam_img_file)
                 content_to_send.append(exam_img)
-                content_to_send.append(final_prompt)
+                content_to_send.append(f"{instructions}\nעכשיו פענח את המבחן והשווה למחוון: {rubric}")
                 
                 response = model.generate_content(content_to_send)
-                
-                st.success("הניתוח הושלם!")
-                st.markdown("### 📊 תוצאות הבדיקה:")
+                st.success("הבדיקה הושלמה!")
                 st.write(response.text)
-                
             except Exception as e:
                 st.error(f"שגיאה: {e}")
     else:
-        st.warning("אנא העלה לפחות את תמונת המבחן ומלא את המחוון.")
+        st.warning("וודא שבחרת תלמיד עם אותיות, העלית מבחן וכתבת מחוון.")
