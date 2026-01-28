@@ -2,60 +2,72 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 
-st.set_page_config(page_title="EduCheck AI - מפענח כתב יד", layout="wide")
-st.title("📝 EduCheck AI - פענוח לפי דוגמת כתב")
+st.set_page_config(page_title="EduCheck Pro AI", layout="wide")
+st.title("📝 EduCheck Pro - למידת כתב יד עמוקה")
 
-# פתרון לשגיאת ה-404: הגדרת המודל בצורה מפורשת
+# הגדרת ה-API
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
     st.error("חסר מפתח API ב-Secrets!")
 
+# ממשק העלאת קבצים
+st.subheader("💡 שלב 1: למד את ה-AI את כתב היד שלך")
 col1, col2 = st.columns(2)
-
 with col1:
-    st.subheader("1. דף לימוד אותיות")
-    handwriting_sample = st.file_uploader("העלה צילום שבו כתבת 'זה א', 'זה ב' וכו':", type=['png', 'jpg', 'jpeg'], key="sample")
-
+    sample1 = st.file_uploader("דף אותיות 1 (למשל א-ל):", type=['png', 'jpg', 'jpeg'])
 with col2:
-    st.subheader("2. דף המבחן")
-    exam_image = st.file_uploader("העלה את המבחן שצריך לפענח:", type=['png', 'jpg', 'jpeg'], key="exam")
+    sample2 = st.file_uploader("דף אותיות 2 (למשל מ-ת + מספרים):", type=['png', 'jpg', 'jpeg'])
 
-rubric = st.text_area("מחוון (התשובה הנכונה שאתה מצפה לה):")
+st.subheader("✍️ שלב 2: העלה את המבחן")
+exam_img = st.file_uploader("תמונת המבחן לפענוח:", type=['png', 'jpg', 'jpeg'])
 
-if st.button("למד כתב ובדוק מבחן 🚀"):
-    if handwriting_sample and exam_image and rubric:
-        with st.spinner('מנתח את כתב היד...'):
+rubric = st.text_area("מחוון (התשובה הנכונה):")
+
+if st.button("למד ובדוק מבחן 🚀"):
+    if sample1 and exam_img and rubric:
+        with st.spinner('ה-AI לומד את האותיות ומנתח...'):
             try:
-                # שימוש במודל היציב ביותר
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                # שימוש במודל Pro - חזק יותר בניתוח תמונות
+                model = genai.GenerativeModel(model_name="gemini-1.5-pro")
                 
-                sample_img = Image.open(handwriting_sample)
-                exam_img = Image.open(exam_image)
+                # הכנת התמונות
+                img_sample1 = Image.open(sample1)
+                img_exam = Image.open(exam_img)
+                inputs = [img_sample1]
                 
-                # הנחיה (Prompt) חזקה שמדגישה את הלימוד
+                if sample2:
+                    img_sample2 = Image.open(sample2)
+                    inputs.append(img_sample2)
+                
+                inputs.append(img_exam)
+                
+                # הנחיה מפורטת וממוקדת
                 prompt = f"""
-                משימה: פענוח כתב יד קשה.
+                אתה מומחה לפענוח כתב יד קשה. 
+                התמונות הראשונות שהעליתי הן 'מפתח הפענוח' שלך. 
+                תסתכל על האותיות שם, תלמד את הזוויות, העובי והצורה שבה הכותב כותב כל אות.
                 
-                שלב 1: תסתכל בתמונה הראשונה (דף הלימוד). למד איך הכותב מצייר כל אות וכל מילה. זה ה'מפתח' שלך לפענוח.
-                שלב 2: תשתמש בידע שרכשת בשלב 1 כדי לקרוא את הטקסט בתמונה השנייה (המבחן).
-                שלב 3: השווה את מה שפענחת למחוון הבא: {rubric}.
+                עכשיו, תשתמש בידע הזה כדי לקרוא את התמונה האחרונה (המבחן).
                 
-                ענה בעברית:
-                1. מה כתוב במבחן (ציטוט)?
-                2. ציון סופי.
-                3. הסבר קצר.
+                לאחר הפענוח, בצע את המשימות הבאות:
+                1. תמלל את מה שכתוב במבחן מילה במילה.
+                2. השווה למחוון הבא: {rubric}
+                3. תן ציון והסבר בפירוט.
+                
+                ענה בעברית ברורה.
                 """
                 
-                # שליחת הבקשה
-                response = model.generate_content([prompt, sample_img, exam_img])
+                inputs.append(prompt)
                 
-                st.success("הפענוח הושלם!")
+                response = model.generate_content(inputs)
+                
+                st.success("הבדיקה הושלמה!")
                 st.markdown("---")
                 st.write(response.text)
                 
             except Exception as e:
-                st.error(f"קרתה שגיאה: {e}")
-                st.info("אם השגיאה היא 404, נסה להחליף את 'gemini-1.5-flash' ב-'gemini-pro-vision' בקוד.")
+                st.error(f"שגיאה: {e}")
+                st.info("אם השגיאה נמשכת, וודא שמפתח ה-API שלך בתוקף ושחשבון ה-Google Cloud שלך פעיל.")
     else:
-        st.warning("נא להעלות את שתי התמונות ולכתוב מחוון.")
+        st.warning("חובה להעלות לפחות דף אותיות אחד ואת דף המבחן.")
