@@ -3,80 +3,84 @@ import google.generativeai as genai
 from PIL import Image
 import os
 
-# 1. הגדרות דף בסיסיות
+# --- 1. עיצוב האפליקציה (CSS) ---
 st.set_page_config(page_title="EduCheck Pro", layout="wide")
 
-# 2. חיבור ל-API של גוגל
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #f0f2f6;
+    }
+    .main-title {
+        color: #2e4a7d;
+        text-align: center;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 12px;
+        padding: 10px 24px;
+        border: none;
+        width: 100%;
+    }
+    .stTextArea textarea {
+        border-radius: 10px;
+        border: 1px solid #2e4a7d;
+    }
+    .sidebar .sidebar-content {
+        background-color: #ffffff;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. לוגיקה וחיבורים ---
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
-    st.error("Missing GOOGLE_API_KEY in Secrets!")
+    st.error("Missing API Key!")
     st.stop()
 
-# 3. מערכת כניסה למורים (הפרדת מאגרים)
+st.markdown("<h1 class='main-title'>📝 EduCheck Pro</h1>", unsafe_allow_html=True)
+
+# כניסת מורה
 st.sidebar.title("🔐 כניסת מורה")
-teacher_id = st.sidebar.text_input("הכנס קוד מורה (למשל מספר טלפון):", type="password")
+teacher_id = st.sidebar.text_input("הכנס קוד מורה:", type="password")
 
 if not teacher_id:
-    st.title("ברוכים הבאים ל-EduCheck Pro")
-    st.info("אנא הכנס קוד מורה בסרגל הצדי כדי להתחיל.")
+    st.info("שלום! אנא הכנס קוד מורה בסרגל הצדי כדי להתחבר למאגר האישי שלך.")
     st.stop()
 
-# יצירת תיקייה אישית למורה
 teacher_folder = f"data_{teacher_id}"
 if not os.path.exists(teacher_folder):
     os.makedirs(teacher_folder)
 
-# 4. הגדרת שפה ומילון ממשק
-lang = st.sidebar.selectbox("שפה / Language", ["עברית", "English"])
-if lang == "עברית":
-    t = {
-        "main_title": "📝 EduCheck - בודק מבחנים חכם",
-        "sidebar_head": "👥 ניהול תלמידים",
-        "new_stud": "רישום תלמיד חדש",
-        "old_stud": "בחירת תלמיד קיים",
-        "btn_save": "שמור תלמיד במאגר",
-        "btn_check": "בדוק מבחן 🚀",
-        "loading": "לומד את הכתב ומנתח...",
-        "success": "הפענוח הושלם!"
-    }
-else:
-    t = {
-        "main_title": "📝 EduCheck Pro - Smart Grader",
-        "sidebar_head": "👥 Students Management",
-        "new_stud": "New Student",
-        "old_stud": "Existing Student",
-        "btn_save": "Save Student",
-        "btn_check": "Analyze Exam 🚀",
-        "loading": "Learning and Analyzing...",
-        "success": "Analysis Done!"
-    }
-
-st.title(t["main_title"])
-
-# 5. ניהול מאגר התלמידים (בתוך התיקייה של המורה)
+# --- 3. הגדרת סגנון בדיקה אישי ---
 st.sidebar.divider()
-st.sidebar.header(t["sidebar_head"])
-action = st.sidebar.radio("פעולה:", [t["old_stud"], t["new_stud"]])
+st.sidebar.subheader("⚙️ סגנון הבדיקה שלך")
+grading_style = st.sidebar.text_area("איך תרצה שה-AI יבדוק? (למשל: 'היה סלחן על שגיאות כתיב', 'היה קשוח בניסוח מדעי'):", 
+                                   placeholder="כתוב כאן הנחיות כלליות שיוחלו על כל המבחנים...")
 
+# --- 4. ניהול תלמידים ---
+st.sidebar.header("👥 ניהול תלמידים")
+action = st.sidebar.radio("פעולה:", ["תלמיד קיים", "רישום חדש"])
 existing_students = os.listdir(teacher_folder)
 selected_student = None
 sample_images = []
 
-if action == t["new_stud"]:
+if action == "רישום חדש":
     new_name = st.sidebar.text_input("שם התלמיד:")
-    s1 = st.sidebar.file_uploader("דגימת כתב 1 (א-ח)", type=['png', 'jpg', 'jpeg'], key="s1")
-    s2 = st.sidebar.file_uploader("דגימת כתב 2 (ט-ע)", type=['png', 'jpg', 'jpeg'], key="s2")
-    s3 = st.sidebar.file_uploader("דגימת כתב 3 (פ-ת)", type=['png', 'jpg', 'jpeg'], key="s3")
-    
-    if st.sidebar.button(t["btn_save"]):
+    s1 = st.sidebar.file_uploader("חלק 1", type=['png', 'jpg', 'jpeg'], key="s1")
+    s2 = st.sidebar.file_uploader("חלק 2", type=['png', 'jpg', 'jpeg'], key="s2")
+    s3 = st.sidebar.file_uploader("חלק 3", type=['png', 'jpg', 'jpeg'], key="s3")
+    if st.sidebar.button("שמור תלמיד"):
         if new_name and s1 and s2 and s3:
             s_path = os.path.join(teacher_folder, new_name)
             if not os.path.exists(s_path): os.makedirs(s_path)
             for i, s in enumerate([s1, s2, s3]):
                 with open(os.path.join(s_path, f"sample_{i}.png"), "wb") as f:
                     f.write(s.getbuffer())
-            st.sidebar.success(f"התלמיד {new_name} נשמר!")
+            st.sidebar.success("נשמר!")
             st.rerun()
 else:
     if existing_students:
@@ -86,46 +90,42 @@ else:
             img_p = os.path.join(s_path, f"sample_{i}.png")
             if os.path.exists(img_p):
                 sample_images.append(Image.open(img_p))
-    else:
-        st.sidebar.warning("אין תלמידים רשומים במאגר שלך.")
 
-# 6. אזור בדיקת המבחן
-st.divider()
+# --- 5. אזור הבדיקה ---
 col1, col2 = st.columns(2)
 with col1:
-    exam_file = st.file_uploader("העלה צילום מבחן (פתוח או אמריקאי):", type=['png', 'jpg', 'jpeg'])
+    st.subheader("📸 העלאת המבחן")
+    exam_file = st.file_uploader("", type=['png', 'jpg', 'jpeg'])
 with col2:
-    rubric = st.text_area("מחוון תשובות (מה התשובה הנכונה):", height=150)
+    st.subheader("🎯 מחוון תשובות")
+    rubric = st.text_area("מה התשובה הנכונה?", height=100)
 
-if st.button(t["btn_check"]):
+if st.button("בדוק מבחן 🚀"):
     if selected_student and sample_images and exam_file and rubric:
-        with st.spinner(t["loading"]):
+        with st.spinner("מנתח לפי הסגנון האישי שלך..."):
             try:
-                # שימוש במודל המאוזן ביותר
                 model = genai.GenerativeModel('gemini-1.5-flash')
                 img_exam = Image.open(exam_file)
                 
-                # בניית הפרומפט המסונכרן
+                # שילוב סגנון המורה בתוך הפרומפט
                 prompt = f"""
-                You are a teaching assistant checking an exam for the student: {selected_student}.
+                You are a teaching assistant working for a teacher with a specific grading style.
                 
-                1. Look at the first 3 images. They are the 'Handwriting Key' for this specific student.
-                2. Analyze the last image (the exam).
-                3. If it's a written answer, use the 'Key' to read it.
-                4. If it's a multiple-choice exam, identify which answer is circled or marked.
+                TEACHER'S PERSONAL STYLE: {grading_style if grading_style else "Standard and professional."}
                 
-                Compare the student's answer to this rubric: {rubric}
+                STUDENT: {selected_student}
+                TASK:
+                1. Use the first 3 images to learn the student's handwriting.
+                2. Grade the last image based on this rubric: {rubric}
                 
-                Answer in Hebrew:
-                - What did the student write/mark?
-                - Is it correct?
-                - Final score.
+                Answer in Hebrew. Be sure to follow the teacher's personal style in your feedback and grading.
                 """
                 
                 response = model.generate_content([prompt] + sample_images + [img_exam])
-                st.success(t["success"])
+                st.markdown("### 📝 תוצאות הבדיקה")
+                st.success("הפענוח הושלם!")
                 st.write(response.text)
             except Exception as e:
                 st.error(f"Error: {e}")
     else:
-        st.warning("נא לוודא: 1. בחרת תלמיד 2. העלית מבחן 3. כתבת מחוון.")
+        st.warning("וודא שמילאת את כל השדות.")
