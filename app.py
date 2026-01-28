@@ -1,109 +1,131 @@
-# כניסת מורה
-st.sidebar.title("🔐 כניסת מורה")
-teacher_id = st.sidebar.text_input("הכנס קוד מורה אישי (למשל טלפון):", type="password")
-
-if teacher_id:
-    # יצירת תיקייה נפרדת למורה הזה בלבד
-    base_path = f"data_{teacher_id}"
-    if not os.path.exists(base_path):
-        os.makedirs(base_path)
-    
-    # מפה והלאה, כל הקוד ישתמש ב-base_path במקום ב-"students_data"
-    # למשל: existing_students = os.listdir(base_path)
-else:
-    st.warning("אנא הכנס קוד מורה כדי לראות את המאגר שלך.")
-    st.stop() # עוצר את האפליקציה כאן עד שהמורה מזדהה
-    import streamlit as st
+import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 import os
 
-st.set_page_config(page_title="EduCheck Pro - OCR & Quiz", layout="wide")
+# 1. הגדרות דף בסיסיות
+st.set_page_config(page_title="EduCheck Pro", layout="wide")
 
-if not os.path.exists("students_data"):
-    os.makedirs("students_data")
-
+# 2. חיבור ל-API של גוגל
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
-    st.error("Missing API Key!")
+    st.error("Missing GOOGLE_API_KEY in Secrets!")
+    st.stop()
 
-# בחירת שפה
-lang = st.sidebar.selectbox("Language", ["עברית", "English"])
-t_check = "בדוק מבחן (פתוח/אמריקאי) 🚀" if lang == "עברית" else "Analyze Exam 🚀"
+# 3. מערכת כניסה למורים (הפרדת מאגרים)
+st.sidebar.title("🔐 כניסת מורה")
+teacher_id = st.sidebar.text_input("הכנס קוד מורה (למשל מספר טלפון):", type="password")
 
-st.title("📝 EduCheck Pro - בודק מבחנים חכם")
+if not teacher_id:
+    st.title("ברוכים הבאים ל-EduCheck Pro")
+    st.info("אנא הכנס קוד מורה בסרגל הצדי כדי להתחיל.")
+    st.stop()
 
-# ניהול מאגר תלמידים
-st.sidebar.header("מאגר תלמידים")
-action = st.sidebar.radio("פעולה:", ["תלמיד קיים", "רישום חדש"])
+# יצירת תיקייה אישית למורה
+teacher_folder = f"data_{teacher_id}"
+if not os.path.exists(teacher_folder):
+    os.makedirs(teacher_folder)
 
-existing_students = os.listdir("students_data")
+# 4. הגדרת שפה ומילון ממשק
+lang = st.sidebar.selectbox("שפה / Language", ["עברית", "English"])
+if lang == "עברית":
+    t = {
+        "main_title": "📝 EduCheck - בודק מבחנים חכם",
+        "sidebar_head": "👥 ניהול תלמידים",
+        "new_stud": "רישום תלמיד חדש",
+        "old_stud": "בחירת תלמיד קיים",
+        "btn_save": "שמור תלמיד במאגר",
+        "btn_check": "בדוק מבחן 🚀",
+        "loading": "לומד את הכתב ומנתח...",
+        "success": "הפענוח הושלם!"
+    }
+else:
+    t = {
+        "main_title": "📝 EduCheck Pro - Smart Grader",
+        "sidebar_head": "👥 Students Management",
+        "new_stud": "New Student",
+        "old_stud": "Existing Student",
+        "btn_save": "Save Student",
+        "btn_check": "Analyze Exam 🚀",
+        "loading": "Learning and Analyzing...",
+        "success": "Analysis Done!"
+    }
+
+st.title(t["main_title"])
+
+# 5. ניהול מאגר התלמידים (בתוך התיקייה של המורה)
+st.sidebar.divider()
+st.sidebar.header(t["sidebar_head"])
+action = st.sidebar.radio("פעולה:", [t["old_stud"], t["new_stud"]])
+
+existing_students = os.listdir(teacher_folder)
 selected_student = None
-sample_files = []
+sample_images = []
 
-if action == "רישום חדש":
+if action == t["new_stud"]:
     new_name = st.sidebar.text_input("שם התלמיד:")
-    s1 = st.sidebar.file_uploader("חלק 1 (א-ח)", type=['png', 'jpg', 'jpeg'], key="s1")
-    s2 = st.sidebar.file_uploader("חלק 2 (ט-ע)", type=['png', 'jpg', 'jpeg'], key="s2")
-    s3 = st.sidebar.file_uploader("חלק 3 (פ-ת)", type=['png', 'jpg', 'jpeg'], key="s3")
+    s1 = st.sidebar.file_uploader("דגימת כתב 1 (א-ח)", type=['png', 'jpg', 'jpeg'], key="s1")
+    s2 = st.sidebar.file_uploader("דגימת כתב 2 (ט-ע)", type=['png', 'jpg', 'jpeg'], key="s2")
+    s3 = st.sidebar.file_uploader("דגימת כתב 3 (פ-ת)", type=['png', 'jpg', 'jpeg'], key="s3")
     
-    if st.sidebar.button("שמור"):
+    if st.sidebar.button(t["btn_save"]):
         if new_name and s1 and s2 and s3:
-            path = os.path.join("students_data", new_name)
-            if not os.path.exists(path): os.makedirs(path)
+            s_path = os.path.join(teacher_folder, new_name)
+            if not os.path.exists(s_path): os.makedirs(s_path)
             for i, s in enumerate([s1, s2, s3]):
-                with open(os.path.join(path, f"sample_{i}.png"), "wb") as f:
+                with open(os.path.join(s_path, f"sample_{i}.png"), "wb") as f:
                     f.write(s.getbuffer())
-            st.sidebar.success("נשמר!")
+            st.sidebar.success(f"התלמיד {new_name} נשמר!")
             st.rerun()
 else:
     if existing_students:
         selected_student = st.sidebar.selectbox("בחר תלמיד:", existing_students)
-        path = os.path.join("students_data", selected_student)
+        s_path = os.path.join(teacher_folder, selected_student)
         for i in range(3):
-            img_path = os.path.join(path, f"sample_{i}.png")
-            if os.path.exists(img_path):
-                sample_images = Image.open(img_path)
-                sample_files.append(sample_images)
+            img_p = os.path.join(s_path, f"sample_{i}.png")
+            if os.path.exists(img_p):
+                sample_images.append(Image.open(img_p))
+    else:
+        st.sidebar.warning("אין תלמידים רשומים במאגר שלך.")
 
+# 6. אזור בדיקת המבחן
 st.divider()
 col1, col2 = st.columns(2)
 with col1:
-    exam_file = st.file_uploader("העלה את המבחן (כתב יד או אמריקאי):", type=['png', 'jpg', 'jpeg'])
+    exam_file = st.file_uploader("העלה צילום מבחן (פתוח או אמריקאי):", type=['png', 'jpg', 'jpeg'])
 with col2:
-    rubric = st.text_area("מחוון (למבחן אמריקאי: רשום 1.א, 2.ג וכו'):", height=150)
+    rubric = st.text_area("מחוון תשובות (מה התשובה הנכונה):", height=150)
 
-if st.button(t_check):
-    if selected_student and sample_files and exam_file and rubric:
-        with st.spinner("מנתח מבחן ומסנכרן אותיות..."):
+if st.button(t["btn_check"]):
+    if selected_student and sample_images and exam_file and rubric:
+        with st.spinner(t["loading"]):
             try:
-                # ניסיון להשתמש בשם מודל הכי נפוץ
+                # שימוש במודל המאוזן ביותר
                 model = genai.GenerativeModel('gemini-1.5-flash')
                 img_exam = Image.open(exam_file)
                 
+                # בניית הפרומפט המסונכרן
                 prompt = f"""
-                You are an expert teacher's assistant.
+                You are a teaching assistant checking an exam for the student: {selected_student}.
                 
-                STEP 1: Learn this student's ({selected_student}) handwriting from the first 3 reference images.
-                STEP 2: Analyze the last image (the exam). 
-                - If it's a written answer: use the reference to decode the handwriting.
-                - If it's a Multiple Choice (American) exam: detect which option is circled or marked with X.
+                1. Look at the first 3 images. They are the 'Handwriting Key' for this specific student.
+                2. Analyze the last image (the exam).
+                3. If it's a written answer, use the 'Key' to read it.
+                4. If it's a multiple-choice exam, identify which answer is circled or marked.
                 
-                RUBRIC: {rubric}
+                Compare the student's answer to this rubric: {rubric}
                 
-                OUTPUT IN HEBREW:
-                1. Transcription of what the student wrote or marked.
-                2. Check accuracy against the rubric.
-                3. Final Grade.
+                Answer in Hebrew:
+                - What did the student write/mark?
+                - Is it correct?
+                - Final score.
                 """
                 
-                response = model.generate_content([prompt] + sample_files + [img_exam])
-                st.success("הבדיקה הושלמה!")
-                st.markdown("### תוצאות:")
+                response = model.generate_content([prompt] + sample_images + [img_exam])
+                st.success(t["success"])
                 st.write(response.text)
-                
             except Exception as e:
-                st.error(f"שגיאה: {e}. וודא שמפתח ה-API תקין.")
+                st.error(f"Error: {e}")
     else:
-        st.warning("אנא וודא שבחרת תלמיד, העלית את המבחן והזנת מחוון.")
+        st.warning("נא לוודא: 1. בחרת תלמיד 2. העלית מבחן 3. כתבת מחוון.")
