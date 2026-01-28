@@ -1,4 +1,19 @@
-import streamlit as st
+# כניסת מורה
+st.sidebar.title("🔐 כניסת מורה")
+teacher_id = st.sidebar.text_input("הכנס קוד מורה אישי (למשל טלפון):", type="password")
+
+if teacher_id:
+    # יצירת תיקייה נפרדת למורה הזה בלבד
+    base_path = f"data_{teacher_id}"
+    if not os.path.exists(base_path):
+        os.makedirs(base_path)
+    
+    # מפה והלאה, כל הקוד ישתמש ב-base_path במקום ב-"students_data"
+    # למשל: existing_students = os.listdir(base_path)
+else:
+    st.warning("אנא הכנס קוד מורה כדי לראות את המאגר שלך.")
+    st.stop() # עוצר את האפליקציה כאן עד שהמורה מזדהה
+    import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 import os
