@@ -44,8 +44,4 @@ st.set_page_config(page_title="EduCheck Summer", layout="wide")
 selected_lang = st.sidebar.selectbox("🌐 שפה / Language / اللغة", ["עברית", "English", "العربية"])
 L = LANG_DICT[selected_lang]
 
-# --- 2. עיצוב ויישור לימין (CSS) ---
-st.markdown(f"""
-    <style>
-    .stApp {{ background: linear-gradient(180deg, #FFEFBA 0%, #FFFFFF 100%); direction: {L['dir']}; text-align: {L['align']}; }}
-    [data-testid="stSidebar"], .stTextArea, .stTextInput, .stSelect
+# --- 2. עיצוב ויישור לימין (CSS) -
