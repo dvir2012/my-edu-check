@@ -3,132 +3,103 @@ import google.generativeai as genai
 from PIL import Image
 import os
 
-# --- 1. הגדרות שפה ועיצוב ---
-st.set_page_config(page_title="EduCheck Pro - MultiLang", layout="wide", page_icon="📝")
+# --- 1. הגדרות שפה ותרגומים ---
+LANG_DICT = {
+    "עברית": {
+        "dir": "rtl", "align": "right", "title": "EduCheck AI PRO", "sub": "מערכת חכמה לבדיקת מבחנים",
+        "teacher_zone": "🔐 מרחב מורה", "id_label": "קוד מורה:", "student_new": "+ תלמיד חדש",
+        "student_list": "בחר תלמיד:", "exam_upload": "📸 העלאת מבחן", "rubric_label": "🎯 מחוון בדיקה",
+        "btn_check": "התחל ניתוח AI", "style_label": "סגנון בדיקה:", "error_api": "מפתח API חסר!"
+    },
+    "English": {
+        "dir": "ltr", "align": "left", "title": "EduCheck AI PRO", "sub": "Smart Exam Analysis System",
+        "teacher_zone": "🔐 Teacher Zone", "id_label": "Teacher ID:", "student_new": "+ New Student",
+        "student_list": "Select Student:", "exam_upload": "📸 Upload Exam", "rubric_label": "🎯 Grading Rubric",
+        "btn_check": "Start AI Analysis", "style_label": "Grading Style:", "error_api": "Missing API Key!"
+    },
+    "العربية": {
+        "dir": "rtl", "align": "right", "title": "إيدوشيك برو", "sub": "نظام ذكي لتقييم الامتحانات",
+        "teacher_zone": "🔐 منطقة المعلم", "id_label": "رمز المعلم:", "student_new": "+ طالب جديد",
+        "student_list": "اختر طالب:", "exam_upload": "📸 تحميل الامتحان", "rubric_label": "🎯 نموذج الإجابة",
+        "btn_check": "ابدأ تحليل الذكاء الاصطناعي", "style_label": "أسلوب التقييم:", "error_api": "رمز API مفقود!"
+    }
+}
 
-# הוספת בורר שפה בסרגל הצדי
-language = st.sidebar.selectbox("🌐 בחר שפה / اختر اللغة", ["עברית", "العربية"])
+st.set_page_config(page_title="EduCheck Pro", layout="wide")
 
-# הגדרת צבעים לפי שפה
-if language == "עברית":
-    primary_color = "#4facfe"
-    secondary_color = "#00f2fe"
-    text_align = "right"
-    direction = "rtl"
-    title = "EduCheck Pro"
-    subtitle = "העוזר החכם שלך לבדיקת מבחנים"
-else:
-    primary_color = "#2ecc71" # ירוק לערבית
-    secondary_color = "#27ae60"
-    text_align = "right"
-    direction = "rtl"
-    title = "إيدوشيك برو"
-    subtitle = "מساعدך الذكي לתכנון ובדיקת מבחנים"
+# בחירת שפה - תמיד מוצגת
+selected_lang = st.sidebar.selectbox("🌐 Select Language / בחר שפה", ["עברית", "English", "العربية"])
+L = LANG_DICT[selected_lang]
 
+# --- 2. עיצוב טכנולוגי מתקדם (CSS) ---
 st.markdown(f"""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;700;800&family=Orbitron:wght@400;700&display=swap');
+    
     .stApp {{
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        font-family: 'Assistant', sans-serif;
-        direction: {direction};
-        text-align: {text_align};
+        background-color: #0e1117;
+        color: #ffffff;
+        direction: {L['dir']};
+        text-align: {L['align']};
     }}
+    
+    /* כותרת בסגנון הייטק */
     .main-header {{
-        background: linear-gradient(90deg, {primary_color} 0%, {secondary_color} 100%);
+        font-family: 'Orbitron', sans-serif;
+        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        text-align: center;
-        font-size: 3rem;
+        font-size: 3.5rem;
         font-weight: 800;
+        text-align: center;
+        margin-bottom: 0px;
+        text-shadow: 0px 10px 20px rgba(0,210,255,0.3);
     }}
+    
+    /* עיצוב כפתורים */
     div.stButton > button {{
-        background: linear-gradient(to right, {primary_color} 0%, {secondary_color} 100%);
+        background: linear-gradient(45deg, #00c6ff, #0072ff);
+        border: none;
         color: white;
+        padding: 20px;
+        border-radius: 12px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        transition: 0.4s;
+        text-transform: uppercase;
+    }}
+    
+    div.stButton > button:hover {{
+        box-shadow: 0px 0px 20px #00c6ff;
+        transform: scale(1.02);
+    }}
+
+    /* עיצוב קונטיינרים */
+    [data-testid="stVerticalBlock"] > div {{
+        background: rgba(255, 255, 255, 0.05);
+        padding: 20px;
         border-radius: 15px;
-        width: 100%;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }}
+    
+    /* התאמת הסיידבר */
+    [data-testid="stSidebar"] {{
+        background-color: #161b22;
+        border-{ 'left' if L['dir'] == 'rtl' else 'right' }: 1px solid #30363d;
     }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. חיבור ל-API ---
+# --- 3. חיבור ל-API ---
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
-    st.error("Missing API Key!")
+    st.error(L["error_api"])
     st.stop()
 
-st.markdown(f"<h1 class='main-header'>{title}</h1>", unsafe_allow_html=True)
-st.markdown(f"<p style='text-align: center; color: #5c6b73;'>{subtitle}</p>", unsafe_allow_html=True)
+# --- 4. תוכן האפליקציה ---
+st.markdown(f"<h1 class='main-header'>{L['title']}</h1>", unsafe_allow_html=True)
+st.markdown(f"<p style='text-align: center; color: #8b949e; font-size: 1.2rem; margin-top: -15px;'>{L['sub']}</p>", unsafe_allow_html=True)
 
-# --- 3. סרגל צדי (Sidebar) ---
-st.sidebar.markdown(f"### 🔐 {'מרחב מורה' if language=='עברית' else 'منطقة المعلم'}")
-teacher_id = st.sidebar.text_input("ID:", type="password")
-
-if not teacher_id:
-    st.info("Please login in the sidebar / الرجاء تسجيل الدخول")
-    st.stop()
-
-teacher_folder = f"data_{teacher_id}"
-if not os.path.exists(teacher_folder):
-    os.makedirs(teacher_folder)
-
-# --- 4. הגדרות וניהול תלמידים ---
-grading_style = st.sidebar.text_area("Style / أسلوب التقييم:", placeholder="ציין דגשים מיוחדים...")
-
-st.sidebar.divider()
-action = st.sidebar.radio("Action:", ["선택 (תלמיד קיים)", "+ חדש"])
-existing_students = os.listdir(teacher_folder)
-selected_student = None
-sample_images = []
-
-if "+ חדש" in action:
-    new_name = st.sidebar.text_input("Name:")
-    # ... (כאן נשאר הקוד המקורי שלך לרישום תלמיד)
-else:
-    if existing_students:
-        selected_student = st.sidebar.selectbox("Student:", existing_students)
-        s_path = os.path.join(teacher_folder, selected_student)
-        for i in range(3):
-            img_p = os.path.join(s_path, f"sample_{i}.png")
-            if os.path.exists(img_p):
-                sample_images.append(Image.open(img_p))
-
-# --- 5. אזור העבודה המרכזי ---
-col1, col2 = st.columns(2)
-
-with col1:
-    label_exam = "📸 העלאת מבחן" if language=="עברית" else "📸 تحميل الامتحان"
-    st.markdown(f"### {label_exam}")
-    exam_file = st.file_uploader("", type=['png', 'jpg', 'jpeg'], key="exam")
-
-with col2:
-    label_rubric = "🎯 מחוון" if language=="עברית" else "🎯 نموذج الإجابة"
-    st.markdown(f"### {label_rubric}")
-    rubric = st.text_area("", placeholder="הכנס תשובות נכונות...", height=120, key="rubric")
-
-if st.button("🚀 " + ("בדוק מבחן" if language=="עברית" else "ابدأ التقييم")):
-    if selected_student and exam_file and rubric:
-        with st.spinner("Analyzing..."):
-            try:
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                img_exam = Image.open(exam_file)
-                
-                # התאמת הפקודה לשפה הנבחרת
-                prompt = f"""
-                Analyze this exam for student: {selected_student}.
-                Use the provided rubric: {rubric}.
-                The teacher's style is: {grading_style}.
-                IMPORTANT: Respond ONLY in {language}.
-                If there are handwriting samples, use them to better understand the student's writing.
-                """
-                
-                response = model.generate_content([prompt] + sample_images + [img_exam])
-                
-                st.markdown("---")
-                st.markdown(f"### Results for {selected_student} / نتائج {selected_student}")
-                st.success(response.text)
-                
-            except Exception as e:
-                st.error(f"Error: {e}")
-    else:
-        st.warning("Please fill all fields / الرجاء ملء جميع الحقول")
+# כניסה בסיידבר
+st.sidebar.markdown(f"### {L['teacher_zone']}")
