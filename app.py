@@ -4,13 +4,13 @@ from PIL import Image
 import os
 
 # --- 1. הגדרות תצורה ושפה ---
-st.set_page_config(page_title="Smart EduCheck", layout="wide", page_icon="🌅")
+st.set_page_config(page_title="EduCheck Smart", layout="wide", page_icon="🌅")
 
 LANG_DICT = {
     "עברית": {
-        "dir": "rtl", "align": "right", "welcome": "ברוכים הבאים ל-Smart EduCheck",
+        "dir": "rtl", "align": "right", "welcome": "ברוכים הבאים ל-EduCheck Smart",
         "enter_code": "אנא הזן קוד גישה כדי להתחיל:", "login_btn": "כניסה למערכת 🔑",
-        "title": "Smart EduCheck 🌅", "teacher_zone": "🔑 מרחב המורה",
+        "title": "EduCheck Smart 🌅", "teacher_zone": "🔑 מרחב המורה",
         "id_label": "קוד גישה:", "student_reg": "📝 רישום תלמיד חדש",
         "student_name_label": "שם התלמיד:", "save_btn": "שמור מאגר",
         "select_student": "👤 בחר תלמיד:", "exam_type": "📝 סוג המבחן:", 
@@ -20,21 +20,21 @@ LANG_DICT = {
         "error_api": "מפתח API חסר!", "success_reg": "✅ התלמיד נרשם בהצלחה!"
     },
     "English": {
-        "dir": "ltr", "align": "left", "welcome": "Welcome to Smart EduCheck",
+        "dir": "ltr", "align": "left", "welcome": "Welcome to EduCheck Smart",
         "enter_code": "Please enter access code to start:", "login_btn": "Login 🔑",
-        "title": "Smart EduCheck 🌅", "teacher_zone": "🔑 Teacher Zone",
+        "title": "EduCheck Smart 🌅", "teacher_zone": "🔑 Teacher Zone",
         "id_label": "Access Code:", "student_reg": "📝 Student Registry",
         "student_name_label": "Student Name:", "save_btn": "Save Database",
         "select_student": "👤 Select Student:", "exam_type": "📝 Exam Type:", 
         "types": ["Open Questions", "Multiple Choice", "Fill in Blanks", "True/False", "Math"],
         "exam_upload": "📸 Upload Exam", "rubric_label": "🎯 Rubric",
-        "btn_check": "Start Smart Analysis 🚀", "scan_msg": "Analyzing data...",
+        "btn_check": "Start Expert Check 🚀", "scan_msg": "Analyzing data...",
         "error_api": "API Key Missing!", "success_reg": "✅ Student registered!"
     },
     "العربية": {
-        "dir": "rtl", "align": "right", "welcome": "مرحباً بكم في Smart EduCheck",
+        "dir": "rtl", "align": "right", "welcome": "مرحباً بكم في EduCheck Smart",
         "enter_code": "يرجى إدخال رمز الدخول للبدء:", "login_btn": "دخول 🔑",
-        "title": "Smart EduCheck 🌅", "teacher_zone": "🔑 منطقة المعلم",
+        "title": "EduCheck Smart 🌅", "teacher_zone": "🔑 منطقة المعلم",
         "id_label": "رمز الدخول:", "student_reg": "📝 تسجيل طالب جديد",
         "student_name_label": "اسم الطالب:", "save_btn": "حفظ القاعدة",
         "select_student": "👤 اختر الطالب:", "exam_type": "📝 نوع الامتحان:", 
@@ -45,13 +45,13 @@ LANG_DICT = {
     }
 }
 
-# --- 2. ניהול מצב כניסה ---
+# --- 2. ניהול מצב כניסה (Session State) ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "teacher_id" not in st.session_state:
     st.session_state.teacher_id = ""
 
-# --- 3. פונקציית עיצוב Sunset Edition ---
+# --- 3. פונקציית עיצוב Sunset Edition (CSS) ---
 def apply_style(dir, align):
     st.markdown(f"""
     <style>
@@ -67,11 +67,11 @@ def apply_style(dir, align):
         div.stButton > button {{
             background: linear-gradient(45deg, #FD746C, #FF9068);
             border-radius: 12px; color: white; border: none; height: 3.5em; font-weight: bold; width: 100%;
-            transition: 0.3s;
+            transition: 0.3s ease-in-out;
         }}
         div.stButton > button:hover {{
-            transform: translateY(-2px);
-            box-shadow: 0px 5px 15px rgba(0,0,0,0.3);
+            transform: translateY(-3px);
+            box-shadow: 0px 8px 20px rgba(0,0,0,0.4);
         }}
         .stTextArea textarea, .stTextInput input, .stSelectbox div[handle_container="true"] {{
             background-color: rgba(255, 255, 255, 0.1) !important; color: white !important;
@@ -84,28 +84,28 @@ def apply_style(dir, align):
 # --- 4. מסך כניסה (Login Screen) ---
 if not st.session_state.logged_in:
     apply_style("rtl", "center")
-    st.markdown("<h1 class='main-header'>Smart EduCheck 🌅</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-header'>EduCheck Smart 🌅</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        st.markdown("<div style='background: rgba(0,0,0,0.3); padding: 30px; border-radius: 20px;'>", unsafe_allow_html=True)
-        st.markdown("### Welcome | ברוכים הבאים | مرحباً")
-        input_id = st.text_input("Access Code / קוד גישה / رمز الدخول", type="password")
-        if st.button("Enter Smart EduCheck 🚀"):
+        st.markdown("<div style='background: rgba(0,0,0,0.4); padding: 40px; border-radius: 25px; border: 1px solid rgba(255,255,255,0.2);'>", unsafe_allow_html=True)
+        st.markdown("### Access Control | בקרת כניסה")
+        input_id = st.text_input("Enter Access Code / הזן קוד גישה", type="password")
+        if st.button("Launch EduCheck Smart 🚀"):
             if input_id:
                 st.session_state.logged_in = True
                 st.session_state.teacher_id = input_id
                 st.rerun()
             else:
-                st.warning("Please enter a code")
+                st.warning("Please enter a code to proceed")
         st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 # --- 5. האפליקציה הראשית (לאחר התחברות) ---
-selected_lang = st.sidebar.selectbox("🌐 Language", ["עברית", "English", "العربية"])
+selected_lang = st.sidebar.selectbox("🌐 Language / שפה", ["עברית", "English", "العربية"])
 L = LANG_DICT[selected_lang]
 apply_style(L["dir"], L["align"])
 
-# חיבור ל-API
+# חיבור ל-Gemini API
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
@@ -114,7 +114,7 @@ else:
 
 st.markdown(f"<h1 class='main-header'>{L['title']}</h1>", unsafe_allow_html=True)
 
-# ניהול נתונים בסיידבר
+# ניהול נתונים (סיידבר)
 base_path = f"data_{st.session_state.teacher_id}"
 if not os.path.exists(base_path): os.makedirs(base_path)
 
@@ -132,11 +132,11 @@ with st.sidebar.expander(L["student_reg"]):
             st.success(L["success_reg"])
             st.rerun()
 
-if st.sidebar.button("Logout | התנתקות"):
+if st.sidebar.button("Logout | התנתקות 🚪"):
     st.session_state.logged_in = False
     st.rerun()
 
-# ממשק בדיקה
+# ממשק העבודה
 st.divider()
 students = sorted(os.listdir(base_path))
 c1, c2, c3 = st.columns(3)
@@ -153,22 +153,34 @@ with c2:
 
 with c3:
     st.subheader(L["rubric_label"])
-    rubric = st.text_area("", placeholder="מחוון...", height=150)
+    rubric = st.text_area("", placeholder="מחוון / תשובות נכונות...", height=150)
 
 if st.button(L["btn_check"]):
     if student_name and exam_file and rubric:
         with st.status(L["scan_msg"]):
             try:
+                # משיכת דגימות הכיול
                 student_dir = os.path.join(base_path, student_name)
                 samples = [Image.open(os.path.join(student_dir, f)) for f in os.listdir(student_dir)]
+                
                 model = genai.GenerativeModel('gemini-1.5-flash')
                 exam_img = Image.open(exam_file)
-                prompt = f"Grade {e_type} for {student_name}. Rubric: {rubric}. calibrate OCR with handwriting samples. Respond in {selected_lang}."
+                
+                # הנחיה ל-AI (פרומפט) משוכללת
+                prompt = f"""
+                You are a professional teaching assistant. 
+                Evaluate the {e_type} exam for the student named {student_name}.
+                1. Calibration: Use the 3 provided handwriting samples to understand how this student writes.
+                2. OCR: Read the handwritten text in the exam image.
+                3. Grading: Compare against this rubric: {rubric}.
+                4. Feedback: Provide a final score (0-100) and specific feedback in {selected_lang}.
+                """
+                
                 response = model.generate_content([prompt] + samples + [exam_img])
                 st.balloons()
                 st.markdown(f"### 📋 תוצאות עבור {student_name}")
                 st.write(response.text)
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Error during analysis: {e}")
     else:
-        st.warning("נא למלא את כל השדות!")
+        st.warning("Please ensure a student is selected, an exam is uploaded, and the rubric is provided.")
