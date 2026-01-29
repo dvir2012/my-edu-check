@@ -3,17 +3,18 @@ import google.generativeai as genai
 from PIL import Image
 import os
 
-# --- 1. הגדרות שפה ומילון ---
+# --- 1. הגדרות שפה ומילון משופר ---
 LANG_DICT = {
     "עברית": {
         "dir": "rtl", "align": "right", "title": "EduCheck Summer ☀️", 
         "sub": "בדיקת מבחנים בכיף ובקלות", "teacher_zone": "🍹 מרחב המורה",
         "id_label": "קוד גישה:", "student_reg": "📝 רישום תלמיד",
         "student_name_label": "שם התלמיד:", "upload_samples": "העלה 3 דגימות כתב יד:",
-        "save_btn": "שמור מאגר אותיות", "select_student": "בחר תלמיד:",
-        "exam_type": "סוג המבחן:", "types": ["מבחן רגיל (פתוח)", "מבחן אמריקאי"],
+        "save_btn": "שמור מאגר אותיות", "select_student": "👤 בחר תלמיד:",
+        "exam_type": "📝 סוג המבחן:", 
+        "types": ["מבחן פתוח", "מבחן אמריקאי", "השלמת משפטים", "נכון/לא נכון", "חישובים ומתמטיקה"],
         "exam_upload": "📸 העלאת המבחן", "rubric_label": "🎯 מחוון / תשובות נכונות",
-        "btn_check": "התחל בדיקה חכמה 🚀", "scan_msg": "מבצע סריקה עמוקה וחידוד ראייה...",
+        "btn_check": "התחל בדיקה חכמה 🚀", "scan_msg": "סורק תחת קרני השמש...",
         "error_api": "חסר מפתח API!"
     },
     "English": {
@@ -21,10 +22,11 @@ LANG_DICT = {
         "sub": "Easy & Breezy Grading", "teacher_zone": "🍹 Teacher Lounge",
         "id_label": "Access Code:", "student_reg": "📝 Student Registry",
         "student_name_label": "Student Name:", "upload_samples": "Upload 3 Samples:",
-        "save_btn": "Save Handwriting", "select_student": "Select Student:",
-        "exam_type": "Exam Type:", "types": ["Open Questions", "Multiple Choice"],
+        "save_btn": "Save Handwriting", "select_student": "👤 Select Student:",
+        "exam_type": "📝 Exam Type:", 
+        "types": ["Open Questions", "Multiple Choice", "Fill in the Blanks", "True/False", "Math & Calculations"],
         "exam_upload": "📸 Upload Exam", "rubric_label": "🎯 Rubric",
-        "btn_check": "Start Smart Analysis 🚀", "scan_msg": "Deep scanning...",
+        "btn_check": "Start Smart Analysis 🚀", "scan_msg": "Scanning under the sun...",
         "error_api": "Missing API Key!"
     },
     "العربية": {
@@ -32,8 +34,9 @@ LANG_DICT = {
         "sub": "تصحيح الامتحانات بكل سهولة ومتعة", "teacher_zone": "🍹 منطقة المعلم",
         "id_label": "رمز الدخول:", "student_reg": "📝 تسجيل طالب جديد",
         "student_name_label": "اسم الطالب:", "upload_samples": "تحميل 3 نماذج للخط:",
-        "save_btn": "حفظ قاعدة البيانات", "select_student": "اختر الطالب:",
-        "exam_type": "نوع الامتحان:", "types": ["امتحان عادي", "امتحان أمريكي"],
+        "save_btn": "حفظ القاعدة", "select_student": "👤 اختر الطالب:",
+        "exam_type": "📝 نوع الامتحان:", 
+        "types": ["امتحان مفتوح", "امتحان أمريكي", "إكمال الجمل", "صح/خطأ", "حسابات ورياضيات"],
         "exam_upload": "📸 تحميل الامتحان", "rubric_label": "🎯 نموذج الإجابة",
         "btn_check": "ابدأ التصحيح 🚀", "scan_msg": "جاري التحليل...",
         "error_api": "رمز API مفقود!"
@@ -41,12 +44,10 @@ LANG_DICT = {
 }
 
 st.set_page_config(page_title="EduCheck Summer", layout="wide", page_icon="☀️")
-
-# בחירת שפה
-selected_lang = st.sidebar.selectbox("🌐 Language", ["עברית", "English", "العربية"])
+selected_lang = st.sidebar.selectbox("🌐 שפה / Language / اللغة", ["עברית", "English", "العربية"])
 L = LANG_DICT[selected_lang]
 
-# --- 2. עיצוב קיצי מלוטש (CSS) ---
+# --- 2. עיצוב קיצי (CSS) ---
 st.markdown(f"""
 <style>
     .stApp {{
@@ -71,9 +72,7 @@ st.markdown(f"""
         font-weight: bold;
         width: 100%;
     }}
-    [data-testid="stSidebar"] {{
-        direction: {L['dir']};
-    }}
+    [data-testid="stSidebar"] {{ direction: {L['dir']}; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -86,7 +85,7 @@ else:
 
 st.markdown(f"<h1 class='main-header'>{L['title']}</h1>", unsafe_allow_html=True)
 
-# --- 4. סיידבר: ניהול מורים ותלמידים ---
+# סיידבר: קוד מורה ורישום
 st.sidebar.title(L["teacher_zone"])
 teacher_id = st.sidebar.text_input(L["id_label"], type="password")
 
@@ -98,66 +97,4 @@ base_path = f"data_{teacher_id}"
 if not os.path.exists(base_path): os.makedirs(base_path)
 
 with st.sidebar.expander(L["student_reg"]):
-    reg_name = st.text_input(L["student_name_label"])
-    s1 = st.file_uploader("דגימה 1", type=['png', 'jpg', 'jpeg'], key="s1")
-    s2 = st.file_uploader("דגימה 2", type=['png', 'jpg', 'jpeg'], key="s2")
-    s3 = st.file_uploader("דגימה 3", type=['png', 'jpg', 'jpeg'], key="s3")
-    
-    if st.button(L["save_btn"]):
-        if reg_name and s1 and s2 and s3:
-            path = os.path.join(base_path, reg_name)
-            if not os.path.exists(path): os.makedirs(path)
-            for i, s in enumerate([s1, s2, s3]):
-                Image.open(s).save(os.path.join(path, f"{i}.png"))
-            st.success("✅ נרשם!")
-            st.rerun()
-
-# --- 5. ממשק בדיקה מרכזי ---
-st.divider()
-students = sorted(os.listdir(base_path))
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown(f"### {L['select_student']}")
-    student_name = st.selectbox("", [""] + students, label_visibility="collapsed")
-    st.markdown(f"**{L['exam_type']}**")
-    e_type = st.radio("", L["types"], label_visibility="collapsed")
-
-with col2:
-    st.markdown(f"### {L['exam_upload']}")
-    exam_file = st.file_uploader("", type=['png', 'jpg', 'jpeg'], key="exam")
-
-with col3:
-    st.markdown(f"### {L['rubric_label']}")
-    rubric = st.text_area("", placeholder="הכנס מחוון תשובות...", height=150)
-
-if st.button(L["btn_check"]):
-    if student_name and exam_file and rubric:
-        with st.status(L["scan_msg"]):
-            try:
-                # טעינת 3 דגימות כתב יד
-                student_dir = os.path.join(base_path, student_name)
-                samples = [Image.open(os.path.join(student_dir, f)) for f in os.listdir(student_dir)]
-                
-                # הגדרת ה-AI
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                exam_img = Image.open(exam_file)
-                
-                # פרומפט משוכלל לדיוק מקסימלי
-                prompt = f"""
-                You are an expert teacher grading a {e_type}.
-                1. Use the provided 3 handwriting samples of {student_name} to calibrate your OCR.
-                2. Read the handwritten exam image carefully.
-                3. Compare the answers to this rubric: {rubric}.
-                4. Provide a grade and detailed feedback.
-                5. Respond ONLY in {selected_lang}.
-                """
-                
-                response = model.generate_content([prompt] + samples + [exam_img])
-                st.balloons()
-                st.markdown(f"## תוצאות עבור {student_name}")
-                st.success(response.text)
-            except Exception as e:
-                st.error(f"שגיאה: {e}")
-    else:
-        st.warning("נא למלא את כל הפרטים!")
+    reg_name
