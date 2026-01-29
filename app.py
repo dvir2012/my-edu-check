@@ -12,13 +12,13 @@ LANG_DICT = {
         "student_name_label": "שם התלמיד:", "upload_samples": "העלה 3 דגימות כתב יד:",
         "save_btn": "שמור מאגר אותיות", "select_student": "בחר תלמיד:",
         "exam_type": "סוג המבחן:", "types": ["מבחן רגיל (פתוח)", "מבחן אמריקאי"],
-        "exam_upload": "📸 העלאת המבחן", "rubric_label": "🎯 מחוון / תשובות נכון",
+        "exam_upload": "📸 העלאת המבחן", "rubric_label": "🎯 מחוון / תשובות נכונות",
         "btn_check": "התחל בדיקה חכמה 🚀", "scan_msg": "מבצע סריקה עמוקה וחידוד ראייה...",
         "error_api": "חסר מפתח API!"
     },
     "English": {
         "dir": "ltr", "align": "left", "title": "EduCheck Summer ☀️", 
-        "sub": "Easy & Breezy Grading", "teacher_zone": "🍹 Teacher Zone",
+        "sub": "Easy & Breezy Grading", "teacher_zone": "🍹 Teacher Lounge",
         "id_label": "Access Code:", "student_reg": "📝 Student Registry",
         "student_name_label": "Student Name:", "upload_samples": "Upload 3 Samples:",
         "save_btn": "Save Handwriting", "select_student": "Select Student:",
@@ -35,7 +35,7 @@ LANG_DICT = {
         "save_btn": "حفظ قاعدة البيانات", "select_student": "اختر الطالب:",
         "exam_type": "نوع الامتحان:", "types": ["امتحان عادي", "امتحان أمريكي (دوائر)"],
         "exam_upload": "📸 تحميل الامتحان", "rubric_label": "🎯 نموذج الإجابة",
-        "btn_check": "ابدأ التصحيח الذكي 🚀", "scan_msg": "جاري المسح العميق وتحسين الرؤية...",
+        "btn_check": "ابدأ التصحيح الذكي 🚀", "scan_msg": "جاري المسح العميق وتحسين الرؤية...",
         "error_api": "رمز API مفقود!"
     }
 }
@@ -45,11 +45,11 @@ st.set_page_config(page_title="EduCheck Summer", layout="wide")
 selected_lang = st.sidebar.selectbox("🌐 שפה / Language / اللغة", ["עברית", "English", "العربية"])
 L = LANG_DICT[selected_lang]
 
-# --- 2. עיצוב (CSS) ---
+# --- 2. עיצוב ויישור (CSS) ---
 st.markdown(f"""
     <style>
     .stApp {{ background: linear-gradient(180deg, #FFEFBA 0%, #FFFFFF 100%); direction: {L['dir']}; text-align: {L['align']}; }}
-    [data-testid="stSidebar"], .stTextArea, .stTextInput, .stSelectbox {{ direction: {L['dir']} !important; text-align: {L['align']} !important; }}
+    [data-testid="stSidebar"], .stTextArea, .stTextInput, .stSelectbox, .stRadio {{ direction: {L['dir']} !important; text-align: {L['align']} !important; }}
     .main-header {{ background: linear-gradient(90deg, #FF8C00 0%, #FAD02E 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 3.5rem; font-weight: 800; text-align: center; }}
     div.stButton > button {{ background: linear-gradient(45deg, #FF8C00, #FAD02E); border-radius: 20px; color: white; border: none; width: 100%; height: 3em; font-size: 1.2rem; font-weight: bold; }}
     </style>
@@ -117,8 +117,17 @@ if st.button(L["btn_check"]):
                 for img_name in os.listdir(student_path):
                     sample_images.append(Image.open(os.path.join(student_path, img_name)))
                 
-                # חידוד ראייה: שימוש במודל מתקדם והנחיות דיוק
                 model = genai.GenerativeModel('gemini-1.5-flash')
                 exam_img = Image.open(exam_file)
                 
-                prompt = f"""
+                # יצירת הפרומפט בצורה בטוחה
+                prompt = f"Study handwriting of {student_name}. Type: {e_type}. Rubric: {rubric}. Respond in {selected_lang}. Be precise."
+                
+                response = model.generate_content([prompt] + sample_images + [exam_img])
+                status.update(label="✅ Analysis Complete!", state="complete")
+                st.balloons()
+                st.success(response.text)
+            except Exception as e:
+                st.error(f"Error: {e}")
+    else:
+        st.warning("Please fill all fields!")
