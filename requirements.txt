@@ -1,5 +1,5 @@
 streamlit
 google-generativeai
-pillow
-st-gsheets-connection
-pandas
+Pillow
+python-docx
+pypdf2
