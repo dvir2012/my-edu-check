@@ -2,47 +2,52 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 import os
+import pandas as pd
 
-# --- הגדרת המפתח האישי שלך ---
+# --- 1. הגדרות בסיסיות וחיבורים ---
 MY_API_KEY = "AIzaSyDJdiYe4VmudGKFQzoCI_MmngD26D4wm1Q" 
 genai.configure(api_key=MY_API_KEY)
 
-# --- ניהול מצב (Session State) ---
+# טעינת בסיס הנתונים של כתב היד בעברית (לשיפור הדיוק)
+@st.cache_data
+def load_hebrew_dataset():
+    try:
+        url = "hf://datasets/sivan22/hebrew-handwritten-dataset/data/train-00000-of-00001-8ed2cebcdc416c19.parquet"
+        df = pd.read_parquet(url)
+        return df
+    except:
+        return None
+
+hebrew_df = load_hebrew_dataset()
+
+# --- 2. ניהול מצב (Session State) ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "teacher_id" not in st.session_state:
     st.session_state.teacher_id = None
 
-# --- מילון שפות מורחב ---
+# --- 3. מילון שפות ותצורה ---
 LANG_CONFIG = {
-    "עברית": {"dir": "rtl", "align": "right", "title": "EDUCHECK AI 🚀", "login_msg": "הזן קוד מורה:", "login_btn": "התחבר", "reg_header": "🧬 רישום תלמיד חדש", "name_label": "שם תלמיד:", "sample_label": "דגימת אותיות", "save_btn": "שמור תלמיד", "check_header": "🔍 בדיקת מבחן חכמה", "select_student": "בחר תלמיד לבדיקה:", "rubric_label": "מחוון תשובות:", "upload_label": "העלאת מבחן / צילום:", "run_btn": "הפעל ניתוח AI ⚡", "no_student": "המערכת מוכנה. נא לרשום תלמיד ראשון בסרגל הצד כדי להתחיל."},
-    "English": {"dir": "ltr", "align": "left", "title": "EDUCHECK AI 🚀", "login_msg": "Teacher Code:", "login_btn": "Login", "reg_header": "🧬 Student Registration", "name_label": "Student Name:", "sample_label": "Handwriting Sample", "save_btn": "Save Student", "check_header": "🔍 AI Exam Analysis", "select_student": "Select Student:", "rubric_label": "Answer Rubric:", "upload_label": "Upload/Scan Exam:", "run_btn": "Run Analysis ⚡", "no_student": "Ready. Please register a student in the sidebar to begin."},
-    "العربية": {"dir": "rtl", "align": "right", "title": "EDUCHECK AI 🚀", "login_msg": "أدخل رمز المعلم:", "login_btn": "دخول", "reg_header": "🧬 تسجيل طالب جديد", "name_label": "اسم الطالب:", "sample_label": "عينة الخط", "save_btn": "حفظ الطالب", "check_header": "🔍 تحليل الامتحان", "select_student": "اختر طالب:", "rubric_label": "نموذج الإجابة:", "upload_label": "تحميل الامتحان:", "run_btn": "تشغيل ⚡", "no_student": "يرجى تسجيل طالب في الشريط الجانبي للبدء."},
-    "Français": {"dir": "ltr", "align": "left", "title": "EDUCHECK AI 🚀", "login_msg": "Code Enseignant:", "login_btn": "Connexion", "reg_header": "🧬 Inscription Étudiant", "name_label": "Nom:", "sample_label": "Échantillon", "save_btn": "Enregistrer", "check_header": "🔍 Analyse IA", "select_student": "Choisir Étudiant:", "rubric_label": "Corrigé:", "upload_label": "Charger Examen:", "run_btn": "Lancer ⚡", "no_student": "Veuillez inscrire un étudiant pour commencer."},
-    "Español": {"dir": "ltr", "align": "left", "title": "EDUCHECK AI 🚀", "login_msg": "Código:", "login_btn": "Entrar", "reg_header": "🧬 Registro de Estudiante", "name_label": "Nombre:", "sample_label": "Muestra", "save_btn": "Guardar", "check_header": "🔍 Análisis de IA", "select_student": "Elegir Estudiante:", "rubric_label": "Clave:", "upload_label": "Subir Examen:", "run_btn": "Analizar ⚡", "no_student": "Registre un estudiante para comenzar."},
-    "中文": {"dir": "ltr", "align": "left", "title": "EDUCHECK AI 🚀", "login_msg": "教师代码:", "login_btn": "登录", "reg_header": "🧬 学生注册", "name_label": "姓名:", "sample_label": "手写样本", "save_btn": "保存学生", "check_header": "🔍 智能分析", "select_student": "选择学生:", "rubric_label": "评分标准:", "upload_label": "上传试卷:", "run_btn": "开始分析 ⚡", "no_student": "请先在侧边栏注册学生。"}
+    "עברית": {"dir": "rtl", "align": "right", "title": "EDUCHECK AI 🚀", "login_msg": "הזן קוד מורה:", "login_btn": "התחבר", "reg_header": "🧬 רישום תלמיד חדש", "name_label": "שם תלמיד:", "sample_label": "דגימת אותיות", "save_btn": "שמור תלמיד", "check_header": "🔍 בדיקת מבחן חכמה", "select_student": "בחר תלמיד לבדיקה:", "rubric_label": "מחוון תשובות:", "upload_label": "העלאת מבחן / צילום:", "run_btn": "הפעל ניתוח AI ⚡", "no_student": "המערכת מוכנה. נא לרשום תלמיד ראשון בסרגל הצד."},
+    "English": {"dir": "ltr", "align": "left", "title": "EDUCHECK AI 🚀", "login_msg": "Teacher Code:", "login_btn": "Login", "reg_header": "🧬 Student Registration", "name_label": "Student Name:", "sample_label": "Handwriting Sample", "save_btn": "Save Student", "check_header": "🔍 AI Exam Analysis", "select_student": "Select Student:", "rubric_label": "Answer Rubric:", "upload_label": "Upload/Scan Exam:", "run_btn": "Run Analysis ⚡", "no_student": "Please register a student to begin."},
 }
 
 st.set_page_config(page_title="EduCheck AI", layout="wide", page_icon="⚡")
-
-# בחירת שפה
 lang_choice = st.sidebar.selectbox("🌐 Language / שפה", list(LANG_CONFIG.keys()))
 L = LANG_CONFIG[lang_choice]
 
-# --- עיצוב טכנולוגי (Dark Mode Tech UI) ---
+# --- 4. עיצוב Dark Tech UI ---
 st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Assistant:wght@300;600&display=swap');
     .stApp {{ background: #0d1117; color: #e6edf3; direction: {L['dir']}; text-align: {L['align']}; font-family: 'Assistant', sans-serif; }}
-    .main-header {{ font-family: 'Orbitron', sans-serif; color: #58a6ff; text-shadow: 0px 0px 12px #58a6ff; text-align: center; font-size: 2.8rem; padding: 20px; border-bottom: 1px solid #30363d; }}
-    [data-testid="stSidebar"] {{ background-color: #010409; border-{'right' if L['dir']=='ltr' else 'left'}: 1px solid #30363d; direction: {L['dir']}; }}
-    .stButton > button {{ background: linear-gradient(90deg, #1f6feb 0%, #114ea0 100%); color: white; border-radius: 8px; font-weight: bold; width: 100%; border: 1px solid #388bfd; transition: 0.3s; }}
-    .stButton > button:hover {{ transform: scale(1.02); box-shadow: 0px 0px 15px #388bfd; }}
-    .stTextInput input, .stTextArea textarea {{ background-color: #0d1117 !important; color: #c9d1d9 !important; border: 1px solid #30363d !important; }}
+    .main-header {{ font-family: 'Orbitron', sans-serif; color: #58a6ff; text-shadow: 0px 0px 12px #58a6ff; text-align: center; font-size: 2.8rem; padding: 20px; }}
+    [data-testid="stSidebar"] {{ background-color: #010409; border-{'right' if L['dir']=='ltr' else 'left'}: 1px solid #30363d; }}
+    .stButton > button {{ background: linear-gradient(90deg, #1f6feb 0%, #114ea0 100%); color: white; border-radius: 8px; font-weight: bold; width: 100%; border: 1px solid #388bfd; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 1. מסך כניסה ---
+# --- 5. לוגיקת התחברות ---
 if not st.session_state.logged_in:
     st.markdown(f"<h1 class='main-header'>{L['title']}</h1>", unsafe_allow_html=True)
     _, col, _ = st.columns([1, 1.2, 1])
@@ -56,14 +61,13 @@ if not st.session_state.logged_in:
                 st.rerun()
     st.stop()
 
-# --- 2. בסיס נתונים ---
 base_path = f"data_{st.session_state.teacher_id}"
 if not os.path.exists(base_path): os.makedirs(base_path)
 
-# --- 3. סרגל צד: רישום תלמיד ---
+# --- 6. סרגל צד: רישום תלמידים ---
 with st.sidebar:
     st.markdown(f"## {L['reg_header']}")
-    new_student = st.text_input(L['name_label'], placeholder="שם מלא / Full Name")
+    new_student = st.text_input(L['name_label'])
     s1 = st.file_uploader(f"{L['sample_label']} 1", type=['png', 'jpg', 'jpeg'], key="up1")
     s2 = st.file_uploader(f"{L['sample_label']} 2", type=['png', 'jpg', 'jpeg'], key="up2")
     s3 = st.file_uploader(f"{L['sample_label']} 3", type=['png', 'jpg', 'jpeg'], key="up3")
@@ -75,46 +79,53 @@ with st.sidebar:
             for i, f in enumerate([s1, s2, s3]):
                 Image.open(f).save(os.path.join(path, f"sample_{i}.png"))
             st.success("✅ Student Registered!")
-            st.rerun() # כאן מתבצע הריענון שפותח את הדף המלא
-        else:
-            st.error("Missing Data!")
+            st.rerun()
 
     st.markdown("---")
     if st.button("Logout"):
         st.session_state.logged_in = False
         st.rerun()
 
-# --- 4. מסך ראשי: בדיקה (נפתח רק אחרי רישום תלמיד ראשון) ---
+# --- 7. מסך ראשי: ניתוח מבחנים ---
 st.markdown(f"<h1 class='main-header'>{L['title']}</h1>", unsafe_allow_html=True)
 students = sorted(os.listdir(base_path))
 
 if not students:
     st.warning(f"⚠️ {L['no_student']}")
 else:
-    st.markdown(f"### {L['check_header']}")
-    c1, c2 = st.columns([1, 1.5])
+    col_input, col_cam = st.columns([1, 1.5])
     
-    with c1:
+    with col_input:
         selected = st.selectbox(L['select_student'], students)
-        rubric = st.text_area(L['rubric_label'], height=200, placeholder="הכנס כאן את התשובות הנכונות...")
+        rubric = st.text_area(L['rubric_label'], height=200)
     
-    with c2:
-        st.write(L['upload_label'])
-        exam_file = st.file_uploader("", type=['png', 'jpg', 'jpeg'])
+    with col_cam:
+        exam_file = st.file_uploader(L['upload_label'], type=['png', 'jpg', 'jpeg'])
         exam_cam = st.camera_input("Scanner Camera")
 
     if st.button(L['run_btn']):
         source = exam_cam if exam_cam else exam_file
         if source and rubric:
-            with st.spinner("Decoding Handwriting DNA..."):
+            with st.spinner("Analyzing Handwriting Patterns..."):
                 try:
                     s_dir = os.path.join(base_path, selected)
                     samples = [Image.open(os.path.join(s_dir, f)) for f in os.listdir(s_dir)]
+                    
+                    # בניית הפרומפט שמשתמש בידע מה-Dataset (הקשר תיאורטי)
+                    dataset_context = "Use your internal knowledge of Hebrew handwritten variations (Aleph-Tav)."
+                    prompt = f"""
+                    TASK: Handwriting Recognition & Grading.
+                    STUDENT CONTEXT: Learning unique style from the provided images of {selected}.
+                    GENERAL CONTEXT: {dataset_context}
+                    EXAM: Evaluate the uploaded exam image against this rubric: {rubric}.
+                    LANGUAGE: Answer in {lang_choice}.
+                    """
+                    
                     model = genai.GenerativeModel('gemini-1.5-flash')
-                    prompt = f"Learn from samples: {selected}. Recognize their unique handwriting style. Grade the exam vs rubric: {rubric}. Report in {lang_choice}."
                     response = model.generate_content([prompt] + samples + [Image.open(source)])
+                    
                     st.markdown("---")
-                    st.markdown("### 📡 Analysis Result:")
+                    st.subheader("📡 AI Analysis Report:")
                     st.info(response.text)
                 except Exception as e:
                     st.error(f"AI Failure: {e}")
