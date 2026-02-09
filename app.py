@@ -24,7 +24,7 @@ if "logged_in" not in st.session_state:
 if "teacher_id" not in st.session_state:
     st.session_state.teacher_id = None
 
-# --- 3. הגדרות שפה (RTL/LTR) ---
+# --- 3. הגדרות שפה ---
 LANG_CONFIG = {
     "עברית": {"dir": "rtl", "align": "right", "title": "EduCheck AI 🚀", "login_msg": "קוד מורה אישי:", "login_btn": "התחבר למערכת", "reg_header": "🧬 רישום תלמיד", "name_label": "שם מלא:", "sample_label": "דגימת כתב", "save_btn": "שמור במאגר", "check_header": "🔍 בדיקת מבחן חכמה", "select_student": "בחר תלמיד:", "rubric_label": "מחוון (תשובות נכונות):", "upload_label": "העלאת מבחן:", "run_btn": "הפעל ניתוח AI ⚡", "no_student": "המערכת מוכנה. נא לרשום תלמיד ראשון."},
     "English": {"dir": "ltr", "align": "left", "title": "EduCheck AI 🚀", "login_msg": "Teacher Access Key:", "login_btn": "Login", "reg_header": "🧬 Registration", "name_label": "Student Name:", "sample_label": "Sample", "save_btn": "Save Student", "check_header": "🔍 AI Analysis", "select_student": "Select Student:", "rubric_label": "Answer Key:", "upload_label": "Upload Exam:", "run_btn": "Run AI ⚡", "no_student": "Please register a student to begin."}
@@ -34,7 +34,7 @@ st.set_page_config(page_title="EduCheck AI", layout="wide", page_icon="📝")
 lang_choice = st.sidebar.selectbox("🌐 Language", list(LANG_CONFIG.keys()))
 L = LANG_CONFIG[lang_choice]
 
-# --- 4. עיצוב בהיר ומודרני (Modern Light UI) ---
+# --- 4. CSS רספונסיבי מתקדם ---
 st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;800&display=swap');
@@ -47,53 +47,54 @@ st.markdown(f"""
         font-family: 'Assistant', sans-serif;
     }}
     
+    /* כותרת רספונסיבית */
     .main-header {{
         color: #0984e3;
         text-align: center;
         font-weight: 800;
-        font-size: 3rem;
+        font-size: calc(1.8rem + 1.5vw); /* משתנה לפי גודל מסך */
         padding: 1rem;
-        margin-bottom: 2rem;
+        margin-bottom: 1rem;
         background: white;
         border-radius: 15px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }}
     
-    [data-testid="stSidebar"] {{
-        background-color: #ffffff;
-        border-{'right' if L['dir']=='ltr' else 'left'}: 2px solid #e1e8ed;
+    /* כרטיסיות (Cards) */
+    .card {{
+        background: white;
+        padding: 1.5rem;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.03);
+        border: 1px solid #edf2f7;
+        margin-bottom: 1rem;
     }}
-    
+
+    /* התאמת כפתורים למובייל */
     .stButton > button {{
+        width: 100%;
         background: linear-gradient(135deg, #0984e3 0%, #74b9ff 100%);
         color: white;
         border-radius: 12px;
         font-weight: 600;
         border: none;
-        padding: 0.75rem;
+        padding: 0.8rem;
         transition: 0.3s;
     }}
-    
-    .stButton > button:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(9, 132, 227, 0.3);
-    }}
-    
-    .card {{
-        background: white;
-        padding: 2rem;
-        border-radius: 20px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.03);
-        border: 1px solid #edf2f7;
+
+    /* הסתרת אלמנטים מיותרים במובייל להגדלת שטח העבודה */
+    @media (max-width: 640px) {{
+        .main-header {{ font-size: 1.8rem; }}
+        .card {{ padding: 1rem; }}
     }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 5. מסך כניסה ---
+# --- 5. מסך כניסה רספונסיבי ---
 if not st.session_state.logged_in:
     st.markdown(f"<h1 class='main-header'>{L['title']}</h1>", unsafe_allow_html=True)
-    _, col, _ = st.columns([1, 1.2, 1])
-    with col:
+    col1, col2, col3 = st.columns([1, 4, 1]) # יחס גמיש
+    with col2:
         st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.write(f"### {L['login_msg']}")
         code = st.text_input("Access Key", type="password")
@@ -124,20 +125,20 @@ with st.sidebar:
                 Image.open(f).save(os.path.join(path, f"sample_{i}.png"))
             st.success("נרשם בהצלחה!")
             st.rerun()
-
     st.divider()
     if st.button("Logout"):
         st.session_state.logged_in = False
         st.rerun()
 
-# --- 7. מסך ראשי ---
+# --- 7. מסך עבודה רספונסיבי ---
 st.markdown(f"<div class='main-header'>{L['title']}</div>", unsafe_allow_html=True)
 students = sorted(os.listdir(base_path))
 
 if not students:
     st.info(f"💡 {L['no_student']}")
 else:
-    col_input, col_view = st.columns([1, 1.5], gap="large")
+    # שימוש ב-columns רספונסיביים: במחשב זה זה לצד זה, במובייל זה אחד מתחת לשני
+    col_input, col_view = st.columns([1, 1], gap="medium")
     
     with col_input:
         st.markdown("<div class='card'>", unsafe_allow_html=True)
@@ -149,25 +150,22 @@ else:
         st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.write(f"### {L['upload_label']}")
         exam_file = st.file_uploader("", type=['png', 'jpg', 'jpeg'])
-        exam_cam = st.camera_input("Scanner")
+        # המצלמה חשובה מאוד במובייל
+        exam_cam = st.camera_input("מצלמת סריקה")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    
     if st.button(L['run_btn']):
         source = exam_cam if exam_cam else exam_file
         if source and rubric:
-            with st.status("🔍 מנתח נתונים וסורק כתב יד...", expanded=True):
+            with st.status("🔍 מנתח נתונים...", expanded=True):
                 try:
                     s_dir = os.path.join(base_path, selected)
                     samples = [Image.open(os.path.join(s_dir, f)) for f in os.listdir(s_dir)]
-                    
                     model = genai.GenerativeModel('gemini-1.5-flash')
-                    prompt = f"Analyze handwriting DNA for {selected}. Cross-reference with standard Hebrew script dataset. Grade exam vs rubric: {rubric}. Respond in {lang_choice}."
-                    
+                    prompt = f"Grade exam for {selected}. Use their style. Rubric: {rubric}. Language: {lang_choice}."
                     response = model.generate_content([prompt] + samples + [Image.open(source)])
-                    st.success("הניתוח הושלם!")
-                    st.markdown("### 📋 דו\"ח תוצאות:")
-                    st.write(response.text)
+                    st.success("הושלם!")
+                    st.markdown("### 📋 תוצאות:")
+                    st.info(response.text)
                 except Exception as e:
                     st.error(f"שגיאה: {e}")
