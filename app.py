@@ -12,169 +12,177 @@ ALLOWED_PASSWORDS = [
 ]
 genai.configure(api_key=MY_API_KEY)
 
-# --- 2. עיצוב "למידה חכמה" (Smart Learning UI) ---
-st.set_page_config(page_title="EduCheck AI - Dashboard", layout="wide")
+# --- 2. עיצוב UI מתקדם ---
+st.set_page_config(page_title="EduCheck Premium", layout="wide")
 
 st.markdown("""
 <style>
-    /* רקע כללי של למידה */
+    /* רקע שקיעה חי */
     .stApp {
-        background-color: #f0f2f6;
-        background-image: radial-gradient(#d1d5db 1px, transparent 1px);
-        background-size: 20px 20px; /* נראה כמו דף משובץ/נקודות */
+        background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), 
+                    url('https://images.unsplash.com/photo-1472214103451-9374bd1c798e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80');
+        background-size: cover;
+        background-attachment: fixed;
         direction: rtl;
         text-align: right;
     }
-    
-    /* כותרת עליונה בסגנון האפליקציה */
-    .main-header {
-        background: linear-gradient(90deg, #4f46e5, #7c3aed);
+
+    /* כרטיסי זכוכית (Glassmorphism) */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 25px;
+        padding: 30px;
         color: white;
-        padding: 1.5rem;
-        border-radius: 0 0 30px 30px;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        margin-bottom: 2rem;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        margin-bottom: 25px;
     }
 
-    /* כרטיסי מידע (Cards) */
-    .info-card {
-        background: white;
-        border-radius: 20px;
-        padding: 20px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-        border: 1px solid #e5e7eb;
-        margin-bottom: 20px;
+    /* כותרות */
+    h1, h2, h3, label, p {
+        color: white !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
     }
 
-    /* עיצוב שדות קלט */
-    .stTextInput input, .stTextArea textarea, .stSelectbox select {
-        border-radius: 12px !important;
-        border: 1px solid #d1d5db !important;
-        padding: 10px !important;
-    }
-
-    /* כפתורים */
-    .stButton>button {
-        background: #4f46e5;
-        color: white;
-        border-radius: 12px;
-        padding: 10px 24px;
-        font-weight: 600;
-        border: none;
-        width: 100%;
-        transition: 0.3s;
-    }
-    .stButton>button:hover {
-        background: #4338ca;
-        box-shadow: 0 5px 15px rgba(79, 70, 229, 0.4);
-    }
-
-    /* טאבים */
+    /* עיצוב טאבים */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 20px;
-        justify-content: center;
+        background: rgba(0, 0, 0, 0.2);
+        padding: 10px;
+        border-radius: 15px;
     }
     .stTabs [data-baseweb="tab"] {
-        background-color: white;
-        border-radius: 10px 10px 0 0;
-        padding: 10px 20px;
+        color: white !important;
+        font-weight: bold;
+    }
+
+    /* כפתורי פרימיום */
+    .stButton>button {
+        background: linear-gradient(45deg, #ff512f, #dd2476);
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 15px;
+        font-weight: bold;
+        font-size: 1.1rem;
+        transition: 0.4s ease;
+        box-shadow: 0 4px 15px rgba(221, 36, 118, 0.3);
+    }
+    .stButton>button:hover {
+        transform: scale(1.03);
+        box-shadow: 0 6px 20px rgba(221, 36, 118, 0.5);
+    }
+
+    /* תיבות קלט */
+    .stTextInput input, .stTextArea textarea, .stSelectbox div {
+        background: rgba(255, 255, 255, 0.9) !important;
+        color: #2c3e50 !important;
+        border-radius: 12px !important;
+        border: none !important;
+        font-weight: 500;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. ניהול מצב (Session State) ---
+# --- 3. ניהול מצב ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'reports' not in st.session_state: st.session_state.reports = []
 if 'current_rubric' not in st.session_state: st.session_state.current_rubric = ""
 
-# --- 4. מסך כניסה ---
+# --- 4. מסך כניסה (Premium Login) ---
 if not st.session_state.logged_in:
-    st.markdown("<div style='height: 15vh;'></div>", unsafe_allow_html=True)
-    cols = st.columns([1, 1.2, 1])
-    with cols[1]:
-        st.markdown("<div class='info-card' style='text-align: center;'>", unsafe_allow_html=True)
-        st.image("https://cdn-icons-png.flaticon.com/512/3429/3429156.png", width=80)
-        st.title("כניסת מורים")
-        user_key = st.text_input("הזן מילה סודית:", type="password")
-        if st.button("התחבר למערכת"):
+    st.markdown("<div style='height: 20vh;'></div>", unsafe_allow_html=True)
+    c1, login_col, c3 = st.columns([1, 1.2, 1])
+    with login_col:
+        st.markdown("<div class='glass-card' style='text-align: center;'>", unsafe_allow_html=True)
+        st.markdown("<h1>🌅 EduCheck Login</h1>", unsafe_allow_html=True)
+        st.write("נא להזין את המילה הסודית")
+        user_key = st.text_input("", type="password", placeholder="הכנס סיסמה...")
+        if st.button("כניסה למערכת 🔑"):
             if user_key in ALLOWED_PASSWORDS:
                 st.session_state.logged_in = True
                 st.rerun()
-            else: st.error("סיסמה שגויה")
+            else: st.error("גישה נדחתה. נסה שוב.")
         st.markdown("</div>", unsafe_allow_html=True)
 
 # --- 5. המערכת המרכזית ---
 else:
-    st.markdown("<div class='main-header'><h1>EduCheck AI - Class Management 🎓</h1></div>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; font-size: 3rem;'>EduCheck Premium 🎓</h1>", unsafe_allow_html=True)
     
-    tab1, tab2 = st.tabs(["📝 בדיקת מבחן", "📊 דוחות וציונים"])
+    tab1, tab2 = st.tabs(["🔍 ניהול בדיקה", "📊 ארכיון ציונים"])
 
     with tab1:
-        col_main, col_side = st.columns([2, 1])
+        # פריסה של 2 עמודות - מחוון ובדיקה
+        col_side, col_main = st.columns([1, 1.8])
         
+        with col_side:
+            st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+            st.subheader("🪄 מחולל מחוון AI")
+            rubric_img = st.file_uploader("העלאת שאלון", type=['png', 'jpg', 'jpeg'], key="rubric")
+            chat_cmd = st.text_input("הוראה ל-Gemini:")
+            if st.button("בנה/עדכן מחוון"):
+                with st.spinner("יוצר..."):
+                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    res = model.generate_content([f"צור מחוון מקצועי: {chat_cmd}", Image.open(rubric_img) if rubric_img else ""])
+                    st.session_state.current_rubric = res.text
+            
+            st.session_state.current_rubric = st.text_area("טיוטת מחוון:", value=st.session_state.current_rubric, height=200)
+            st.markdown("</div>", unsafe_allow_html=True)
+
         with col_main:
-            st.markdown("<div class='info-card'><h3>🔍 פרטי התלמיד והמבחן</h3>", unsafe_allow_html=True)
-            c1, c2 = st.columns(2)
-            with c1:
-                student_name = st.text_input("שם התלמיד:")
-                grade_name = st.text_input("כיתה (למשל: ז'3):")
-            with c2:
+            st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+            st.subheader("👤 פרטי התלמיד")
+            c1, c2, c3 = st.columns(3)
+            with c1: name = st.text_input("שם מלא:")
+            with c2: grade = st.text_input("כיתה:")
+            with c3: 
                 subjects = ["תורה", "נביא", "גמרא", "משנה", "הלכה", "מדעים", "היסטוריה", "עברית/לשון", "אחר..."]
                 subj = st.selectbox("מקצוע:", subjects)
-                if subj == "אחר...": subj = st.text_input("פרט מקצוע:")
             
             st.divider()
-            exam_img = st.file_uploader("העלה את המבחן", type=['png', 'jpg', 'jpeg'])
-            cam_img = st.camera_input("צילום מהיר")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with col_side:
-            st.markdown("<div class='info-card'><h3>🪄 מחוון AI</h3>", unsafe_allow_html=True)
-            rubric_img = st.file_uploader("צילום שאלון למחוון", type=['png', 'jpg', 'jpeg'])
-            chat_cmd = st.text_input("בקשה ל-Gemini:")
-            if st.button("בנה מחוון"):
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                res = model.generate_content([f"צור מחוון לשיעור {subj}: {chat_cmd}", Image.open(rubric_img) if rubric_img else ""])
-                st.session_state.current_rubric = res.text
+            st.subheader("📸 העלאת תשובות")
+            exam_file = st.file_uploader("בחר קובץ מבחן", type=['png', 'jpg', 'jpeg'])
+            cam_file = st.camera_input("או צלם")
             
-            st.session_state.current_rubric = st.text_area("המחוון הפעיל:", value=st.session_state.current_rubric, height=150)
+            active = cam_file if cam_file else exam_file
+            
+            if st.button("🚀 בצע בדיקה וניתוח פדגוגי"):
+                if active and name:
+                    with st.spinner("ה-AI מנתח..."):
+                        model = genai.GenerativeModel('gemini-1.5-flash')
+                        prompt = f"נתח מבחן ב{subj} לתלמיד {name}. מחוון: {st.session_state.current_rubric}. תן ציון בולט ומשוב מפורט."
+                        resp = model.generate_content([prompt, Image.open(active)])
+                        txt = resp.text
+                        score = "".join(filter(str.isdigit, txt[:30]))
+                        
+                        st.session_state.reports.append({
+                            "שם": name, "מקצוע": subj, "כיתה": grade,
+                            "ציון": score if score else "נבדק", "תאריך": datetime.now().strftime("%d/%m/%Y"), "דוח": txt
+                        })
+                        st.success("הבדיקה נשמרה בהצלחה!")
+                        st.markdown(f"<div style='background:rgba(255,255,255,0.9); color:black; padding:20px; border-radius:15px;'>{txt}</div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
-
-        if st.button("🚀 בצע בדיקה פדגוגית"):
-            active = cam_img if cam_img else exam_img
-            if active and student_name:
-                with st.spinner("מנתח תוצאות..."):
-                    model = genai.GenerativeModel('gemini-1.5-flash')
-                    prompt = f"נתח מבחן ב{subj} לתלמיד {student_name}. מחוון: {st.session_state.current_rubric}. החזר ציון מספרי מודגש בראש התשובה."
-                    resp = model.generate_content([prompt, Image.open(active)])
-                    
-                    # חילוץ ציון
-                    txt = resp.text
-                    score = "".join(filter(str.isdigit, txt[:30]))
-                    
-                    st.session_state.reports.append({
-                        "שם": student_name, "מקצוע": subj, "כיתה": grade_name,
-                        "ציון": score if score else "--", "תאריך": datetime.now().strftime("%d/%m/%Y"), "דוח": txt
-                    })
-                    st.success("הבדיקה נשמרה!")
-                    st.markdown(f"<div class='info-card' style='color:black;'>{txt}</div>", unsafe_allow_html=True)
 
     with tab2:
-        st.markdown("<div class='info-card'><h3>📊 ארכיון ציונים</h3>", unsafe_allow_html=True)
-        filter_subj = st.selectbox("סנן לפי מקצוע:", ["הכל"] + subjects)
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.subheader("📊 סינון וניהול ציונים")
+        f_subj = st.selectbox("בחר מקצוע לצפייה:", ["הכל"] + subjects)
         
         data = st.session_state.reports
-        if filter_subj != "הכל":
-            data = [r for r in data if r['מקצוע'] == filter_subj]
+        if f_subj != "הכל":
+            data = [r for r in data if r['מקצוע'] == f_subj]
 
         if data:
             for r in reversed(data):
-                with st.expander(f"📌 {r['מקצוע']} | {r['שם']} | כיתה {r['כיתה']} | ציון: {r['ציון']}"):
+                with st.expander(f"📔 {r['מקצוע']} | {r['שם']} | ציון: {r['ציון']}"):
+                    st.write(f"תאריך: {r['תאריך']} | כיתה: {r['כיתה']}")
                     st.markdown(r['דוח'])
-        else: st.info("אין דוחות להצגה")
+        else:
+            st.info("אין דוחות להצגה.")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.sidebar.button("Logout"):
+    if st.sidebar.button("🚪 Logout"):
         st.session_state.logged_in = False
         st.rerun()
