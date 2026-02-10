@@ -4,146 +4,161 @@ from PIL import Image
 import pandas as pd
 from datetime import datetime
 
-# --- 1. הגדרות API וקוד מורה ---
+# --- 1. הגדרות אבטחה ו-API ---
 MY_API_KEY = "AIzaSyDJdiYe4VmudGKFQzoCI_MmngD26D4wm1Q" 
-TEACHER_CODE = "1234" # שנה את הקוד הזה למה שתרצה
+SECRET_WORD = "שקיעה2024"  # <-- כאן אתה משנה את המילה הסודית שלך
 genai.configure(api_key=MY_API_KEY)
 
-# --- 2. עיצוב "שקיעה" (Sunset Design) ---
-st.set_page_config(page_title="EduCheck Sunset", layout="wide")
+# --- 2. עיצוב שקיעה (Sunset UI) ---
+st.set_page_config(page_title="EduCheck Sunset PRO", layout="wide")
 
 st.markdown(f"""
 <style>
-    /* רקע שקיעה מדורג */
+    /* רקע שקיעה פוטוגני */
     .stApp {{
-        background: linear-gradient(180deg, #ff7e5f 0%, #feb47b 50%, #864ba2 100%);
+        background: linear-gradient(135deg, #2c3e50 0%, #000000 100%); /* רקע כהה בסיסי */
+    }}
+    [data-testid="stAppViewContainer"] {{
+        background: linear-gradient(180deg, #ff5e62 0%, #ff9966 40%, #7f00ff 100%);
         direction: rtl;
         text-align: right;
+    }}
+    
+    /* כרטיסי זכוכית (Glassmorphism) */
+    .glass-card {{
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(15px);
+        border-radius: 25px;
+        padding: 30px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        margin-bottom: 25px;
         color: white;
     }}
-    
-    /* כרטיסים לבנים שקופים */
-    .glass-card {{
-        background: rgba(255, 255, 255, 0.15);
-        backdrop-filter: blur(10px);
-        border-radius: 20px;
-        padding: 25px;
-        border: 1px solid rgba(255, 255, 256, 0.2);
-        margin-bottom: 20px;
-    }}
-    
-    h1, h2, h3, p, span, label {{ color: white !important; }}
-    
-    /* עיצוב שדות קלט */
+
+    /* כותרות */
+    h1, h2, h3, label {{ color: white !important; font-family: 'Assistant', sans-serif; }}
+
+    /* עיצוב שדות קלט לבנים ונקיים */
     .stTextArea textarea, .stTextInput input {{
-        background-color: rgba(255, 255, 255, 0.9) !important;
-        color: #2d3436 !important;
+        background-color: rgba(255, 255, 255, 0.95) !important;
+        color: #1e293b !important;
         border-radius: 12px !important;
+        font-size: 1.1rem !important;
     }}
-    
-    /* כפתור בולט */
+
+    /* כפתור "שקיעה" סגול */
     .stButton>button {{
-        background: #6c5ce7;
+        background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
         color: white;
         border: none;
-        padding: 15px 30px;
+        padding: 15px 0px;
         border-radius: 15px;
-        font-weight: bold;
-        width: 100%;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        font-weight: 800;
+        font-size: 1.2rem;
+        transition: 0.3s all;
+    }}
+    .stButton>button:hover {{
+        transform: scale(1.02);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.3);
     }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. ניהול מצב (Session State) ---
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
-if 'student_reports' not in st.session_state:
-    st.session_state.student_reports = []
+# --- 3. ניהול כניסה (Auth) ---
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'reports' not in st.session_state:
+    st.session_state.reports = []
 
-# --- 4. מסך כניסה (Login) ---
-if not st.session_state.authenticated:
-    st.markdown("<div style='text-align:center; padding:100px;'>", unsafe_allow_html=True)
-    st.title("☀️ ברוכים הבאים ל-EduCheck")
-    st.subheader("נא להזין קוד מורה לכניסה")
-    input_code = st.text_input("קוד גישה:", type="password")
-    if st.button("כניסה למערכת"):
-        if input_code == TEACHER_CODE:
-            st.session_state.authenticated = True
-            st.rerun()
-        else:
-            st.error("קוד שגוי. נסה שוב.")
-    st.markdown("</div>", unsafe_allow_html=True)
+# --- 4. מסך כניסה ---
+if not st.session_state.logged_in:
+    cols = st.columns([1, 2, 1])
+    with cols[1]:
+        st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div class='glass-card' style='text-align: center;'>", unsafe_allow_html=True)
+        st.title("🌅 EduCheck Login")
+        st.write("נא להזין את המילה הסודית לכניסה למרחב המורה")
+        
+        user_input = st.text_input("מילה סודית:", type="password")
+        if st.button("כניסה למערכת 🔑"):
+            if user_input == SECRET_WORD:
+                st.session_state.logged_in = True
+                st.rerun()
+            else:
+                st.error("המילה הסודית שגויה. נסה שוב.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-# --- 5. המערכת המרכזית (אחרי כניסה) ---
+# --- 5. ממשק המורה המרכזי ---
 else:
-    st.title("🌅 EduCheck AI - מרחב המורה")
+    st.markdown("<h1 style='text-align: center;'>EduCheck AI - ניהול פדגוגי 🎓</h1>", unsafe_allow_html=True)
     
-    tab1, tab2 = st.tabs(["🔍 בדיקת מבחן חדש", "📊 דוח פדגוגי מסכם"])
-    
+    tab1, tab2 = st.tabs(["🔍 בדיקת מבחן", "📊 דוחות פדגוגיים"])
+
     with tab1:
         st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
+        c1, c2 = st.columns(2)
         
-        with col1:
-            student_name = st.text_input("שם התלמיד:")
-            rubric = st.text_area("מחוון תשובות (מה נחשב נכון?):", height=150)
+        with c1:
+            st.subheader("📝 פרטי המשימה")
+            st_name = st.text_input("שם התלמיד:")
+            st_rubric = st.text_area("מחוון תשובות (מה נחשב תשובה נכונה?):", height=180)
         
-        with col2:
-            img_file = st.file_uploader("העלה צילום מבחן", type=['png', 'jpg', 'jpeg'])
-            camera_img = st.camera_input("או צלם ישירות")
-        
-        final_img = camera_img if camera_img else img_file
-        
-        if st.button("בצע בדיקה וניתוח ⚡"):
-            if final_img and student_name:
-                with st.spinner("ה-AI מנתח את התשובות..."):
-                    try:
-                        img = Image.open(final_img)
-                        model = genai.GenerativeModel('gemini-1.5-flash')
-                        
-                        prompt = f"""
-                        נתח את המבחן של {student_name} לפי המחוון: {rubric}.
-                        ספק תשובה מובנית:
-                        1. ציון סופי (0-100).
-                        2. רשימת טעויות.
-                        3. משוב פדגוגי אישי לתלמיד.
-                        4. נקודות לחיזוק.
-                        """
-                        
-                        response = model.generate_content([prompt, img])
-                        analysis = response.text
-                        
-                        # שמירה לדוח הפדגוגי
-                        st.session_state.student_reports.append({
-                            "שם התלמיד": student_name,
-                            "תאריך": datetime.now().strftime("%d/%m/%Y"),
-                            "ניתוח פדגוגי": analysis
-                        })
-                        
-                        st.success(f"הבדיקה עבור {student_name} הושלמה!")
-                        st.markdown(f"<div style='background:white; color:black; padding:20px; border-radius:15px;'>{analysis}</div>", unsafe_allow_html=True)
-                    except Exception as e:
-                        st.error(f"שגיאה בתקשורת: {e}")
-            else:
-                st.warning("נא למלא שם ולהעלות תמונה.")
+        with c2:
+            st.subheader("📸 העלאת המבחן")
+            file = st.file_uploader("בחר קובץ תמונה", type=['png', 'jpg', 'jpeg'])
+            cam = st.camera_input("או צלם בזמן אמת")
+            
+        active_img = cam if cam else file
+
+        if st.button("נתח מבחן והפק דוח פדגוגי ✨") and active_img:
+            with st.spinner("מנתח כתב יד ומחשב תוצאות..."):
+                try:
+                    img = Image.open(active_img)
+                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    
+                    prompt = f"""
+                    בתור מורה בוחן, נתח את המבחן של {st_name}.
+                    השתמש במחוון: {st_rubric}
+                    ספק דוח מפורט בעברית הכולל:
+                    1. ציון סופי.
+                    2. תמלול תשובות עיקריות.
+                    3. משוב פדגוגי: מה התלמיד הבין ואיפה הוא מתקשה.
+                    4. המלצה לשיפור.
+                    """
+                    
+                    resp = model.generate_content([prompt, img])
+                    output = resp.text
+                    
+                    # שמירה להיסטוריה
+                    st.session_state.reports.append({
+                        "שם": st_name,
+                        "תאריך": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                        "דוח": output
+                    })
+                    
+                    st.success("הבדיקה הסתיימה בהצלחה!")
+                    st.markdown(f"<div style='background: white; color: black; padding: 25px; border-radius: 15px; border-right: 8px solid #7f00ff;'>{output}</div>", unsafe_allow_html=True)
+                except Exception as e:
+                    st.error(f"אירעה שגיאה בניתוח: {e}")
         st.markdown("</div>", unsafe_allow_html=True)
 
     with tab2:
-        st.subheader("📋 דוח פדגוגי מסכם")
-        if st.session_state.student_reports:
-            df = pd.DataFrame(st.session_state.student_reports)
+        st.subheader("📈 ריכוז דוחות פדגוגיים")
+        if st.session_state.reports:
+            # הצגת דוחות בצורה יפה
+            for idx, r in enumerate(reversed(st.session_state.reports)):
+                with st.expander(f"👤 {r['שם']} | 📅 {r['תאריך']}"):
+                    st.markdown(r['דוח'])
             
-            for index, row in df.iterrows():
-                with st.expander(f"👤 {row['שם התלמיד']} - {row['תאריך']}"):
-                    st.write(row['ניתוח פדגוגי'])
-            
-            # כפתור הורדה
+            # אפשרות הורדה
+            df = pd.DataFrame(st.session_state.reports)
             csv = df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("📥 הורד דוח פדגוגי מלא (Excel)", csv, "pedagogical_report.csv", "text/csv")
+            st.download_button("📥 הורד את כל הנתונים לאקסל", csv, "pedagogical_reports.csv", "text/csv")
         else:
-            st.write("עדיין לא נבדקו מבחנים.")
-            
-    if st.sidebar.button("יציאה מהמערכת (Logout)"):
-        st.session_state.authenticated = False
+            st.info("עדיין לא נבדקו מבחנים. התוצאות יופיעו כאן לאחר הבדיקה הראשונה.")
+
+    # Sidebar ליציאה
+    st.sidebar.title("EduCheck Menu")
+    if st.sidebar.button("🚪 התנתקות מהמערכת"):
+        st.session_state.logged_in = False
         st.rerun()
