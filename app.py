@@ -10,7 +10,7 @@ SECRET_WORD = "dvir2012"
 genai.configure(api_key=MY_API_KEY)
 
 # --- 2. עיצוב שקיעה עמוקה ---
-st.set_page_config(page_title="EduCheck PRO", layout="wide")
+st.set_page_config(page_title="EduCheck PRO Chat", layout="wide")
 
 st.markdown("""
 <style>
@@ -22,6 +22,9 @@ st.markdown("""
         background: rgba(255, 255, 255, 0.12);
         backdrop-filter: blur(15px);
         border-radius: 20px; padding: 25px; margin-bottom: 20px; color: white;
+    }
+    .chat-box {
+        background: rgba(0, 0, 0, 0.2); border-radius: 10px; padding: 15px; margin-top: 10px;
     }
     .stTextArea textarea { background-color: white !important; color: black !important; }
     .stTextInput input { background-color: white !important; color: black !important; }
@@ -35,7 +38,7 @@ st.markdown("""
 # --- 3. ניהול מצב (Session State) ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'reports' not in st.session_state: st.session_state.reports = []
-if 'temp_rubric' not in st.session_state: st.session_state.temp_rubric = ""
+if 'current_rubric' not in st.session_state: st.session_state.current_rubric = ""
 
 # --- 4. מסך כניסה ---
 if not st.session_state.logged_in:
@@ -58,45 +61,53 @@ else:
     tab1, tab2 = st.tabs(["🔍 בדיקת מבחן", "📊 דוחות פדגוגיים"])
 
     with tab1:
-        # --- חלק א': יצירת מחוון אוטומטי ---
-        with st.expander("🪄 מחולל מחוון אוטומטי (לפי צילום שאלון)"):
-            st.write("העלה את דף השאלות וה-AI יבנה מחוון תשובות עבורך:")
-            rubric_file = st.file_uploader("העלה תמונת שאלון", type=['png', 'jpg', 'jpeg'], key="rubric_gen")
-            if st.button("צור מחוון מהתמונה ⚡"):
-                if rubric_file:
-                    with st.spinner("מנתח שאלות ומייצר תשובות..."):
-                        img_r = Image.open(rubric_file)
-                        model = genai.GenerativeModel('gemini-1.5-flash')
-                        res = model.generate_content(["נתח את דף השאלות הזה וצור מחוון תשובות מפורט וקצר עבור מורה.", img_r])
-                        st.session_state.temp_rubric = res.text
-                else: st.warning("נא להעלות תמונה של השאלות.")
+        # --- חלק א': בניית מחוון עם צ'אט ---
+        with st.expander("🪄 יצירת מחוון מושלם (צ'אט עם Gemini)"):
+            st.write("העלה שאלון ושפר את המחוון בעזרת הצ'אט:")
+            rubric_file = st.file_uploader("העלה תמונת שאלון (אופציונלי)", type=['png', 'jpg', 'jpeg'])
             
-            if st.session_state.temp_rubric:
-                st.text_area("המחוון שנוצר (ניתן לערוך):", value=st.session_state.temp_rubric, height=150, key="edit_rubric")
-                if st.button("✅ אשר והשתמש במחוון זה"):
-                    st.session_state.final_rubric = st.session_state.edit_rubric
-                    st.success("המחוון עודכן בהצלחה!")
+            chat_input = st.text_input("כתוב ל-Gemini מה לעדכן במחוון (למשל: 'הפוך את המחוון ליותר קפדני'):")
+            
+            if st.button("עדכן מחוון בעזרת ה-AI 💬"):
+                with st.spinner("Gemini מעבד את הבקשה שלך..."):
+                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    
+                    # בניית הפרומפט - שילוב של התמונה (אם יש), המחוון הקיים והבקשה החדשה
+                    prompt_parts = ["אתה עוזר למורה לבנות מחוון מושלם."]
+                    if st.session_state.current_rubric:
+                        prompt_parts.append(f"זה המחוון הקיים: {st.session_state.current_rubric}")
+                    if rubric_file:
+                        prompt_parts.append(Image.open(rubric_file))
+                    prompt_parts.append(f"זו הבקשה החדשה של המורה: {chat_input}")
+                    prompt_parts.append("החזר רק את תוכן המחוון המעודכן והמפורט.")
+                    
+                    response = model.generate_content(prompt_parts)
+                    st.session_state.current_rubric = response.text
+            
+            st.markdown("<div class='chat-box'>", unsafe_allow_html=True)
+            edited_rubric = st.text_area("המחוון הנוכחי שלך (ניתן לערוך ידנית):", 
+                                        value=st.session_state.current_rubric, height=200)
+            st.session_state.current_rubric = edited_rubric
+            st.markdown("</div>", unsafe_allow_html=True)
 
         # --- חלק ב': בדיקת המבחן ---
         st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
             student_name = st.text_input("שם התלמיד:")
-            # המחוון נמשך מהמחולל או מהקלדה ידנית
-            current_rubric = st.text_area("מחוון תשובות סופי:", 
-                                         value=st.session_state.get('final_rubric', ""), 
-                                         height=150)
+            final_rubric = st.text_area("מחוון תשובות סופי לשימוש:", value=st.session_state.current_rubric, height=150)
+        
         with col2:
             source = st.file_uploader("העלה את תשובות התלמיד", type=['png', 'jpg', 'jpeg'])
             cam = st.camera_input("או צלם")
 
         if st.button("נתח והפק דוח פדגוגי 🚀"):
             active_img = cam if cam else source
-            if active_img and student_name and current_rubric:
+            if active_img and student_name and final_rubric:
                 with st.spinner("בודק מבחן..."):
                     img = Image.open(active_img)
                     model = genai.GenerativeModel('gemini-1.5-flash')
-                    prompt = f"נתח את המבחן של {student_name} לפי המחוון: {current_rubric}. תן ציון ודוח פדגוגי בעברית."
+                    prompt = f"נתח את המבחן של {student_name} לפי המחוון: {final_rubric}. תן ציון ודוח פדגוגי בעברית."
                     response = model.generate_content([prompt, img])
                     output = response.text
                     st.session_state.reports.append({"שם": student_name, "תאריך": datetime.now().strftime("%d/%m/%Y"), "דוח": output})
