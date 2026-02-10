@@ -1,5 +1,5 @@
 streamlit
 google-generativeai
 Pillow
-python-docx
-pypdf2
+torch
+torchvision
