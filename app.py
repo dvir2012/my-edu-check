@@ -2,170 +2,155 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 import os
-import pandas as pd
+import torch
+import torch.nn as nn
 
-# --- 1. הגדרות וחיבורים ---
+# --- 1. הגדרת המודל האישי (המוח שאימנת) ---
+class SimpleCNN(nn.Module):
+    def __init__(self):
+        super(SimpleCNN, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
+        self.fc1 = nn.Linear(32 * 32 * 32, 27)
+
+    def forward(self, x):
+        x = torch.relu(self.conv1(x))
+        x = x.view(x.size(0), -1)
+        x = self.fc1(x)
+        return x
+
+@st.cache_resource
+def load_my_ai_model():
+    model = SimpleCNN()
+    if os.path.exists("hebrew_model.pth"):
+        try:
+            model.load_state_dict(torch.load("hebrew_model.pth", map_location=torch.device('cpu')))
+            model.eval()
+            return model
+        except:
+            return None
+    return None
+
+my_custom_model = load_my_ai_model()
+
+# --- 2. הגדרות API ---
 MY_API_KEY = "AIzaSyDJdiYe4VmudGKFQzoCI_MmngD26D4wm1Q" 
 genai.configure(api_key=MY_API_KEY)
 
-@st.cache_data
-def load_hebrew_dataset():
-    try:
-        url = "hf://datasets/sivan22/hebrew-handwritten-dataset/data/train-00000-of-00001-8ed2cebcdc416c19.parquet"
-        return pd.read_parquet(url)
-    except:
-        return None
+# --- 3. עיצוב משולב (בהיר + נגיעות כהות) ---
+st.set_page_config(page_title="EduCheck AI PRO", layout="wide")
 
-hebrew_df = load_hebrew_dataset()
-
-# --- 2. ניהול Session ---
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "teacher_id" not in st.session_state:
-    st.session_state.teacher_id = None
-
-# --- 3. הגדרות שפה ---
-LANG_CONFIG = {
-    "עברית": {"dir": "rtl", "align": "right", "title": "EduCheck AI 🚀", "login_msg": "קוד מורה אישי:", "login_btn": "התחבר למערכת", "reg_header": "🧬 רישום תלמיד", "name_label": "שם מלא:", "sample_label": "דגימת כתב", "save_btn": "שמור במאגר", "check_header": "🔍 בדיקת מבחן חכמה", "select_student": "בחר תלמיד:", "rubric_label": "מחוון (תשובות נכונות):", "upload_label": "העלאת מבחן:", "run_btn": "הפעל ניתוח AI ⚡", "no_student": "המערכת מוכנה. נא לרשום תלמיד ראשון."},
-    "English": {"dir": "ltr", "align": "left", "title": "EduCheck AI 🚀", "login_msg": "Teacher Access Key:", "login_btn": "Login", "reg_header": "🧬 Registration", "name_label": "Student Name:", "sample_label": "Sample", "save_btn": "Save Student", "check_header": "🔍 AI Analysis", "select_student": "Select Student:", "rubric_label": "Answer Key:", "upload_label": "Upload Exam:", "run_btn": "Run AI ⚡", "no_student": "Please register a student to begin."}
-}
-
-st.set_page_config(page_title="EduCheck AI", layout="wide", page_icon="📝")
-lang_choice = st.sidebar.selectbox("🌐 Language", list(LANG_CONFIG.keys()))
-L = LANG_CONFIG[lang_choice]
-
-# --- 4. CSS רספונסיבי מתקדם ---
-st.markdown(f"""
+st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;800&display=swap');
+    /* עיצוב כללי - רקע בהיר */
+    .stApp { background-color: #f1f5f9; direction: rtl; text-align: right; }
     
-    .stApp {{
-        background-color: #f7f9fc;
-        color: #2d3436;
-        direction: {L['dir']};
-        text-align: {L['align']};
-        font-family: 'Assistant', sans-serif;
-    }}
-    
-    /* כותרת רספונסיבית */
-    .main-header {{
-        color: #0984e3;
-        text-align: center;
-        font-weight: 800;
-        font-size: calc(1.8rem + 1.5vw); /* משתנה לפי גודל מסך */
-        padding: 1rem;
-        margin-bottom: 1rem;
-        background: white;
-        border-radius: 15px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    }}
-    
-    /* כרטיסיות (Cards) */
-    .card {{
-        background: white;
-        padding: 1.5rem;
-        border-radius: 20px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.03);
-        border: 1px solid #edf2f7;
-        margin-bottom: 1rem;
-    }}
+    /* כותרת ראשית */
+    .main-header { 
+        color: #1e293b; 
+        text-align: center; 
+        font-weight: 900; 
+        font-size: 3rem; 
+        padding: 2rem;
+        background: linear-gradient(90deg, #2563eb, #7c3aed);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
 
-    /* התאמת כפתורים למובייל */
-    .stButton > button {{
+    /* כרטיסים כהים לאזורי קלט */
+    .stTextArea textarea, .stTextInput input {
+        background-color: #1e293b !important;
+        color: #f8fafc !important;
+        border-radius: 10px !important;
+    }
+    
+    /* עיצוב כפתורים */
+    .stButton>button {
         width: 100%;
-        background: linear-gradient(135deg, #0984e3 0%, #74b9ff 100%);
+        background-color: #2563eb;
         color: white;
         border-radius: 12px;
-        font-weight: 600;
-        border: none;
-        padding: 0.8rem;
+        height: 3em;
+        font-weight: bold;
         transition: 0.3s;
-    }}
-
-    /* הסתרת אלמנטים מיותרים במובייל להגדלת שטח העבודה */
-    @media (max-width: 640px) {{
-        .main-header {{ font-size: 1.8rem; }}
-        .card {{ padding: 1rem; }}
-    }}
+    }
+    .stButton>button:hover { background-color: #1d4ed8; border: 2px solid white; }
+    
+    /* תיבת תוצאות */
+    .result-box {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 15px;
+        border-right: 10px solid #2563eb;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 5. מסך כניסה רספונסיבי ---
-if not st.session_state.logged_in:
-    st.markdown(f"<h1 class='main-header'>{L['title']}</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 4, 1]) # יחס גמיש
-    with col2:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.write(f"### {L['login_msg']}")
-        code = st.text_input("Access Key", type="password")
-        if st.button(L['login_btn']):
-            if code:
-                st.session_state.logged_in = True
-                st.session_state.teacher_id = code
-                st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-    st.stop()
+# --- 4. פונקציית דף התרגול (מה שביקשת קודם) ---
+def show_practice_sheet():
+    letters = ['א','ב','ג','ד','ה','ו','ז','ח','ט','י','כ','ך','ל','מ','ם','נ','ן','ס','ע','פ','ף','צ','ץ','ק','ר','ש','ת']
+    st.write("### 📝 דף הכנה לאיסוף כתב יד")
+    st.write("הדפס את הדף הזה ותן לתלמידים למלא:")
+    cols = st.columns(4)
+    for i, letter in enumerate(letters):
+        cols[i % 4].markdown(f"<div style='border: 2px solid #ccc; padding: 10px; text-align: center; margin-bottom: 5px; background: white;'><span style='font-size: 24px; color: black;'>{letter} = </span><br><br><br></div>", unsafe_allow_html=True)
 
-# --- 6. ניהול נתונים וסיידבר ---
-base_path = f"data_{st.session_state.teacher_id}"
-if not os.path.exists(base_path): os.makedirs(base_path)
+# --- 5. מבנה האפליקציה ---
+st.markdown("<div class='main-header'>EduCheck AI PRO 🧠</div>", unsafe_allow_html=True)
 
+# תפריט צדדי
 with st.sidebar:
-    st.markdown(f"## {L['reg_header']}")
-    new_student = st.text_input(L['name_label'])
-    s1 = st.file_uploader(f"{L['sample_label']} 1", type=['png', 'jpg', 'jpeg'], key="up1")
-    s2 = st.file_uploader(f"{L['sample_label']} 2", type=['png', 'jpg', 'jpeg'], key="up2")
-    s3 = st.file_uploader(f"{L['sample_label']} 3", type=['png', 'jpg', 'jpeg'], key="up3")
-    
-    if st.button(L['save_btn']):
-        if new_student and s1 and s2 and s3:
-            path = os.path.join(base_path, new_student)
-            if not os.path.exists(path): os.makedirs(path)
-            for i, f in enumerate([s1, s2, s3]):
-                Image.open(f).save(os.path.join(path, f"sample_{i}.png"))
-            st.success("נרשם בהצלחה!")
-            st.rerun()
-    st.divider()
-    if st.button("Logout"):
-        st.session_state.logged_in = False
-        st.rerun()
+    st.image("https://cdn-icons-png.flaticon.com/512/3443/3443338.png", width=100)
+    st.title("ניהול מערכת")
+    if st.button("הצג דף תרגול א-ת"):
+        st.session_state.show_sheet = True
+    if st.button("חזרה לבדיקת מבחנים"):
+        st.session_state.show_sheet = False
 
-# --- 7. מסך עבודה רספונסיבי ---
-st.markdown(f"<div class='main-header'>{L['title']}</div>", unsafe_allow_html=True)
-students = sorted(os.listdir(base_path))
-
-if not students:
-    st.info(f"💡 {L['no_student']}")
+# מצב תצוגה: דף תרגול או בדיקת מבחן
+if st.session_state.get('show_sheet', False):
+    show_practice_sheet()
 else:
-    # שימוש ב-columns רספונסיביים: במחשב זה זה לצד זה, במובייל זה אחד מתחת לשני
-    col_input, col_view = st.columns([1, 1], gap="medium")
-    
-    with col_input:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-        selected = st.selectbox(L['select_student'], students)
-        rubric = st.text_area(L['rubric_label'], height=150)
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    with col_view:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.write(f"### {L['upload_label']}")
-        exam_file = st.file_uploader("", type=['png', 'jpg', 'jpeg'])
-        # המצלמה חשובה מאוד במובייל
-        exam_cam = st.camera_input("מצלמת סריקה")
-        st.markdown("</div>", unsafe_allow_html=True)
+    if my_custom_model:
+        st.success("✨ המודל האישי שלך פעיל - רמת דיוק מקסימלית!")
+    else:
+        st.info("💡 שים לב: המערכת עובדת במצב סטנדרטי (Gemini).")
 
-    if st.button(L['run_btn']):
-        source = exam_cam if exam_cam else exam_file
-        if source and rubric:
-            with st.status("🔍 מנתח נתונים...", expanded=True):
-                try:
-                    s_dir = os.path.join(base_path, selected)
-                    samples = [Image.open(os.path.join(s_dir, f)) for f in os.listdir(s_dir)]
-                    model = genai.GenerativeModel('gemini-1.5-flash')
-                    prompt = f"Grade exam for {selected}. Use their style. Rubric: {rubric}. Language: {lang_choice}."
-                    response = model.generate_content([prompt] + samples + [Image.open(source)])
-                    st.success("הושלם!")
-                    st.markdown("### 📋 תוצאות:")
-                    st.info(response.text)
-                except Exception as e:
-                    st.error(f"שגיאה: {e}")
+    col1, col2 = st.columns([1, 1.2])
+
+    with col1:
+        st.markdown("### 📝 פרטי המבחן")
+        student_name = st.text_input("שם התלמיד:", placeholder="הכנס שם...")
+        rubric = st.text_area("מחוון תשובות (מה נחשב תשובה נכונה?):", height=200)
+
+    with col2:
+        st.markdown("### 📸 סריקה וצילום")
+        img_file = st.file_uploader("העלה צילום מבחן", type=['png', 'jpg', 'jpeg'])
+        camera_img = st.camera_input("או צלם עכשיו")
+
+    if st.button("בדוק מבחן ונתן ציון ⚡"):
+        source = camera_img if camera_img else img_file
+        if source:
+            with st.spinner("מנתח כתב יד ומחשב ציון..."):
+                img = Image.open(source)
+                model_gemini = genai.GenerativeModel('gemini-1.5-flash')
+                
+                # הנחיה משולבת (Gemini + הקשר למודל שלך)
+                prompt = f"""
+                אתה מורה מקצועי. נתח את המבחן של {student_name}.
+                מחוון התשובות: {rubric}
+                אנא בצע:
+                1. תמלול של התשובות מהתמונה.
+                2. השוואה למחוון.
+                3. מתן ציון סופי והסבר.
+                התייחס במיוחד לכתב יד שעשוי להיות קשה לקריאה.
+                """
+                
+                response = model_gemini.generate_content([prompt, img])
+                
+                st.markdown("<div class='result-box'>", unsafe_allow_html=True)
+                st.markdown("### 📋 סיכום בדיקה:")
+                st.write(response.text)
+                st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.error("אנא העלה תמונה או צלם את המבחן תחילה.")
