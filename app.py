@@ -14,107 +14,177 @@ ALLOWED_PASSWORDS = [
 ]
 genai.configure(api_key=MY_API_KEY)
 
-# --- 2. עיצוב Modern Tech UI ---
-st.set_page_config(page_title="EduCheck AI", layout="wide")
+# --- 2. עיצוב Cyber-Tech UI (Dark Theme) ---
+st.set_page_config(page_title="EduCheck AI - Pro Tech", layout="wide")
 
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap');
-    .stApp { background-color: #f4f7f9; font-family: 'Segoe UI', sans-serif; direction: rtl; text-align: right; }
-    .modern-card { background: #ffffff; border-radius: 12px; padding: 24px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); border: 1px solid #e1e8ed; margin-bottom: 20px; color: black; }
-    .app-title { color: #1a202c; font-weight: 700; font-size: 2.5rem; text-align: center; }
-    .stButton>button { background-color: #3182ce; color: white !important; border-radius: 8px; font-weight: 600; width: 100%; }
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+    /* רקע כהה וטכנולוגי */
+    .stApp {
+        background-color: #0d1117;
+        color: #c9d1d9;
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* כרטיסי טכנולוגיה צפים */
+    .tech-card {
+        background: #161b22;
+        border-radius: 12px;
+        padding: 25px;
+        border: 1px solid #30363d;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        margin-bottom: 20px;
+    }
+
+    /* כותרות זוהרות */
+    .app-title {
+        background: linear-gradient(90deg, #58a6ff, #1f6feb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
+        font-size: 3rem;
+        text-align: center;
+        letter-spacing: -1px;
+    }
+
+    /* כפתורי Cyber */
+    .stButton>button {
+        background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+        color: white !important;
+        border: none;
+        border-radius: 6px;
+        padding: 12px;
+        font-weight: bold;
+        text-transform: uppercase;
+        transition: 0.3s all;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0 15px rgba(46, 160, 67, 0.4);
+    }
+
+    /* טאבים בסגנון טכני */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: #0d1117;
+        border-bottom: 2px solid #30363d;
+    }
+    .stTabs [data-baseweb="tab"] {
+        color: #8b949e !important;
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .stTabs [data-baseweb="tab--active"] {
+        color: #58a6ff !important;
+        border-bottom-color: #58a6ff !important;
+    }
+
+    /* שדות קלט כהים */
+    input, textarea, select {
+        background-color: #0d1117 !important;
+        color: white !important;
+        border: 1px solid #30363d !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. ניהול Session State (הוספת מאגר האותיות) ---
+# --- 3. ניהול Session State ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'reports' not in st.session_state: st.session_state.reports = []
 if 'current_rubric' not in st.session_state: st.session_state.current_rubric = ""
-if 'letter_library' not in st.session_state: st.session_state.letter_library = [] # כאן נשמר המאגר
+if 'letter_library' not in st.session_state: st.session_state.letter_library = []
 
-# --- 4. מסך כניסה ---
+# --- 4. מסך כניסה Cyber ---
 if not st.session_state.logged_in:
-    st.markdown("<div style='height: 20vh;'></div>", unsafe_allow_html=True)
-    _, login_col, _ = st.columns([1, 1, 1])
+    st.markdown("<div style='height: 15vh;'></div>", unsafe_allow_html=True)
+    _, login_col, _ = st.columns([1, 1.2, 1])
     with login_col:
-        st.markdown("<div class='modern-card'>", unsafe_allow_html=True)
+        st.markdown("<div class='tech-card'>", unsafe_allow_html=True)
         st.markdown("<h1 class='app-title'>EduCheck AI</h1>", unsafe_allow_html=True)
-        user_key = st.text_input("קוד גישה:", type="password")
-        if st.button("כניסה למערכת"):
+        st.write("<p style='text-align:center; color:#8b949e;'>CORE SYSTEM ACCESS REQUIRED</p>", unsafe_allow_html=True)
+        user_key = st.text_input("ACCESS KEY:", type="password", placeholder="PASSWORD...")
+        if st.button("AUTHORIZE"):
             if user_key in ALLOWED_PASSWORDS:
                 st.session_state.logged_in = True
                 st.rerun()
-            else: st.error("סיסמה שגויה")
+            else: st.error("ACCESS DENIED")
         st.markdown("</div>", unsafe_allow_html=True)
 
 # --- 5. ממשק המערכת הראשי ---
 else:
-    # --- סרגל צדי לניהול המאגר המסיבי ---
+    # סרגל צדי טכנולוגי
     with st.sidebar:
-        st.header("📦 מאגר אותיות (ZIP)")
-        st.write("העלה קובץ ZIP מהמחשב עם אלפי דוגמאות לכתב יד.")
-        zip_file = st.file_uploader("טען מאגר אותיות:", type=['zip'])
+        st.markdown("### 🛠️ MODULES")
+        st.divider()
+        st.subheader("📦 DATABASE LOADER")
+        st.write("הזרקת מאגר אותיות מסיבי (ZIP)")
+        zip_file = st.file_uploader("", type=['zip'], key="sidebar_zip")
         
         if zip_file and not st.session_state.letter_library:
-            with st.spinner("מעבד מאגר נתונים..."):
+            with st.spinner("PROCESSING DATASET..."):
                 with zipfile.ZipFile(zip_file, 'r') as z:
                     all_imgs = [f for f in z.namelist() if f.lower().endswith(('png', 'jpg', 'jpeg'))]
-                    # לוקח דגימות מהמאגר כדי לא להעמיס על ה-AI (דגימה כל 15 תמונות)
                     for i in range(0, len(all_imgs), 15):
                         with z.open(all_imgs[i]) as f:
                             img = Image.open(io.BytesIO(f.read())).convert("RGB")
-                            letter_type = all_imgs[i].split('/')[0] # שם התיקייה בתוך ה-ZIP
-                            st.session_state.letter_library.append(f"דוגמה לאות {letter_type}")
+                            letter_type = all_imgs[i].split('/')[0]
+                            st.session_state.letter_library.append(f"PATTERN_{letter_type}")
                             st.session_state.letter_library.append(img)
-                st.success(f"נטענו {len(all_imgs)} דוגמאות!")
+                st.success(f"SYSTEM READY: {len(all_imgs)} SAMPLES LOADED")
 
-        if st.sidebar.button("Log out"):
+        st.divider()
+        if st.button("TERMINATE SESSION"):
             st.session_state.logged_in = False
             st.rerun()
 
-    st.markdown("<h1 class='app-title'>EduCheck AI</h1>", unsafe_allow_html=True)
-    tab1, tab2 = st.tabs(["🔍 ניתוח מבחן", "📊 דוחות וציונים"])
+    st.markdown("<h1 class='app-title'>EduCheck AI PRO</h1>", unsafe_allow_html=True)
+    
+    tab1, tab2 = st.tabs(["📡 NEURAL ANALYSIS", "💾 ARCHIVE DATA"])
 
     with tab1:
         col_m, col_s = st.columns([2, 1])
+        
         with col_m:
-            st.markdown("<div class='modern-card'>", unsafe_allow_html=True)
-            st.subheader("פרטי התלמיד")
+            st.markdown("<div class='tech-card'>", unsafe_allow_html=True)
+            st.subheader("👤 STUDENT METADATA")
             r1, r2, r3 = st.columns(3)
             with r1: name = st.text_input("שם מלא:")
             with r2: grade = st.text_input("כיתה:")
             with r3: 
                 subs = ["תורה", "נביא", "גמרא", "משנה", "הלכה", "מדעים", "היסטוריה", "עברית/לשון", "אחר..."]
                 subj = st.selectbox("מקצוע:", subs)
-            exam_file = st.file_uploader("העלה צילום מבחן", type=['png', 'jpg', 'jpeg'])
-            cam_shot = st.camera_input("צילום מהיר")
+            
+            st.divider()
+            st.subheader("📷 SCANNER INPUT")
+            exam_file = st.file_uploader("UPLOAD EXAM", type=['png', 'jpg', 'jpeg'])
+            cam_shot = st.camera_input("LIVE CAPTURE")
             st.markdown("</div>", unsafe_allow_html=True)
 
         with col_s:
-            st.markdown("<div class='modern-card'>", unsafe_allow_html=True)
-            st.subheader("מחוון AI")
-            rubric_f = st.file_uploader("העלה שאלון", type=['png', 'jpg', 'jpeg'])
-            chat_cmd = st.text_input("הנחיה לתיקון המחוון:")
-            if st.button("עדכן מחוון"):
-                with st.spinner("יוצר..."):
+            st.markdown("<div class='tech-card'>", unsafe_allow_html=True)
+            st.subheader("⚙️ LOGIC RUBRIC")
+            rubric_f = st.file_uploader("UPLOAD QUESTIONNAIRE", type=['png', 'jpg', 'jpeg'])
+            chat_cmd = st.text_input("PROMPT REFINEMENT:")
+            if st.button("GENERATE LOGIC"):
+                with st.spinner("AI COMPILING..."):
                     model = genai.GenerativeModel('gemini-1.5-flash')
-                    res = model.generate_content([f"בנה מחוון ל{subj}: {chat_cmd}", Image.open(rubric_f) if rubric_f else ""])
+                    res = model.generate_content([f"בנה מחוון טכני ל{subj}: {chat_cmd}", Image.open(rubric_f) if rubric_f else ""])
                     st.session_state.current_rubric = res.text
-            st.session_state.current_rubric = st.text_area("טקסט המחוון:", value=st.session_state.current_rubric, height=180)
+            st.session_state.current_rubric = st.text_area("RUBRIC CONTENT:", value=st.session_state.current_rubric, height=180)
             st.markdown("</div>", unsafe_allow_html=True)
 
-        if st.button("🚀 הרץ בדיקה חכמה"):
+        if st.button("🚀 EXECUTE FULL SCAN"):
             active = cam_shot if cam_shot else exam_file
             if active and name:
-                with st.spinner("Gemini מנתח לפי המאגר המסיבי..."):
+                with st.spinner("AI NEURAL PROCESSING..."):
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     
-                    # בניית הפרומפט המשולב (מאגר ZIP + המבחן)
                     final_prompt = [
-                        "אתה מומחה לזיהוי כתב יד. השתמש בדוגמאות המצורפות מהמאגר כדי לזהות את האותיות במבחן:",
+                        "אתה מערכת AI לניתוח כתב יד עברי. השתמש במאגר הדגימות המצורף לזיהוי אותיות במבחן:",
                         *st.session_state.letter_library,
-                        f"נתח את המבחן של {name} במקצוע {subj}. מחוון: {st.session_state.current_rubric}. תן ציון בולט ומשוב פדגוגי.",
+                        f"בצע בדיקה לסטודנט {name} במקצוע {subj}. השווה למחוון: {st.session_state.current_rubric}.",
+                        "החזר דוח טכני הכולל: פענוח טקסט, ציון סופי, וניתוח שגיאות פדגוגי.",
                         Image.open(active)
                     ]
                     
@@ -126,17 +196,18 @@ else:
                         "שם": name, "מקצוע": subj, "כיתה": grade,
                         "ציון": score, "תאריך": datetime.now().strftime("%d/%m/%Y"), "דוח": txt
                     })
-                    st.success("הבדיקה הושלמה!")
-                    st.markdown(f"<div class='modern-card' style='background:#f7fafc; color:black;'>{txt}</div>", unsafe_allow_html=True)
+                    st.success("SCAN COMPLETE")
+                    st.markdown(f"<div class='tech-card' style='background:#1c2128; border-left: 5px solid #2ea043;'>{txt}</div>", unsafe_allow_html=True)
 
     with tab2:
-        st.markdown("<div class='modern-card'>", unsafe_allow_html=True)
-        st.subheader("ארכיון פדגוגי")
-        f_subj = st.selectbox("סנן מקצוע:", ["הכל"] + subs)
-        data = [r for r in st.session_state.reports if f_subj == "הכל" or r['מקצוע'] == f_subj]
+        st.markdown("<div class='tech-card'>", unsafe_allow_html=True)
+        st.subheader("📊 SYSTEM ARCHIVE")
+        f_subj = st.selectbox("FILTER BY MODULE:", ["ALL"] + subs)
+        data = [r for r in st.session_state.reports if f_subj == "ALL" or r['מקצוע'] == f_subj]
+        
         if data:
             for r in reversed(data):
-                with st.expander(f"📄 {r['שם']} | {r['מקצוע']} | ציון: {r['ציון']}"):
+                with st.expander(f"📁 {r['תאריך']} | {r['שם']} | SCORE: {r['ציון']}"):
                     st.markdown(r['דוח'])
-        else: st.info("אין דוחות זמינים כרגע.")
+        else: st.info("NO ARCHIVED DATA FOUND.")
         st.markdown("</div>", unsafe_allow_html=True)
