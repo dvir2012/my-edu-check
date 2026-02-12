@@ -4,7 +4,7 @@ from PIL import Image
 import pandas as pd
 from datetime import datetime
 
-# --- 1. הגדרות API וסיסמאות ---
+# --- 1. הגדרות אבטחה ו-API ---
 MY_API_KEY = "AIzaSyDJdiYe4VmudGKFQzoCI_MmngD26D4wm1Q" 
 ALLOWED_PASSWORDS = [
     "dvir2012", "Teacher2012", "Sunset2012", "מורה2012", "Dvir_2012!",
@@ -12,136 +12,135 @@ ALLOWED_PASSWORDS = [
 ]
 genai.configure(api_key=MY_API_KEY)
 
-# --- 2. עיצוב Cyber-Tech UI (ללא סרגלים וללא ZIP) ---
-st.set_page_config(page_title="EduCheck AI - Unlimited", layout="wide", initial_sidebar_state="collapsed")
+# --- 2. עיצוב שקיעה עמוקה ---
+st.set_page_config(page_title="EduCheck Class Management", layout="wide")
 
-st.markdown("""
+st.markdown(f"""
 <style>
-    [data-testid="stSidebar"] {display: none;}
-    
-    .stApp {
-        background-color: #0d1117;
-        color: #c9d1d9;
-        direction: rtl;
-        text-align: right;
-    }
-
-    .tech-card {
-        background: #161b22;
-        border-radius: 12px;
-        padding: 25px;
-        border: 1px solid #30363d;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        margin-bottom: 20px;
-    }
-
-    .app-title {
-        background: linear-gradient(90deg, #58a6ff, #1f6feb);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 800;
-        font-size: 3rem;
-        text-align: center;
-        padding: 20px;
-    }
-
-    .stButton>button {
-        background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
-        color: white !important;
-        border-radius: 6px;
-        padding: 12px;
-        font-weight: bold;
-        width: 100%;
-    }
+    [data-testid="stAppViewContainer"] {{
+        background: linear-gradient(180deg, #42275a 0%, #734b6d 50%, #ba5370 100%);
+        direction: rtl; text-align: right;
+    }}
+    .glass-card {{
+        background: rgba(255, 255, 255, 0.12);
+        backdrop-filter: blur(15px);
+        border-radius: 20px; padding: 25px; border: 1px solid rgba(255, 255, 255, 0.2);
+        margin-bottom: 20px; color: white;
+    }}
+    h1, h2, h3, label, .stMarkdown {{ color: #ffffff !important; }}
+    .stTextArea textarea, .stTextInput input, .stSelectbox select {{
+        background-color: rgba(255, 255, 255, 0.95) !important;
+        color: #1e293b !important; border-radius: 10px !important;
+    }}
+    .stButton>button {{
+        background: linear-gradient(90deg, #ff512f 0%, #dd2476 100%);
+        color: white; border: none; padding: 12px 25px; border-radius: 12px; font-weight: 700; width: 100%;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. ניהול Session State ---
+# --- 3. ניהול מצב (Session State) ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'reports' not in st.session_state: st.session_state.reports = []
 if 'current_rubric' not in st.session_state: st.session_state.current_rubric = ""
 
 # --- 4. מסך כניסה ---
 if not st.session_state.logged_in:
-    st.markdown("<div style='height: 15vh;'></div>", unsafe_allow_html=True)
-    _, login_col, _ = st.columns([1, 1.2, 1])
-    with login_col:
-        st.markdown("<div class='tech-card'>", unsafe_allow_html=True)
-        st.markdown("<h1 class='app-title'>EduCheck AI</h1>", unsafe_allow_html=True)
-        user_key = st.text_input("מפתח גישה למאגר המידע:", type="password", placeholder="הכנס סיסמה...")
-        if st.button("אישור גישה"):
+    st.markdown("<div style='height: 20vh;'></div>", unsafe_allow_html=True)
+    cols = st.columns([1, 1.5, 1])
+    with cols[1]:
+        st.markdown("<div class='glass-card' style='text-align: center;'>", unsafe_allow_html=True)
+        st.title("🌅 כניסת מורים")
+        user_key = st.text_input("מילה סודית:", type="password")
+        if st.button("כניסה למערכת 🔑"):
             if user_key in ALLOWED_PASSWORDS:
                 st.session_state.logged_in = True
                 st.rerun()
-            else: st.error("גישה נדחתה")
+            else: st.error("סיסמה שגויה.")
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- 5. ממשק ראשי מבוסס מאגרי ענן ---
+# --- 5. המערכת המרכזית ---
 else:
-    st.markdown("<h1 class='app-title'>EduCheck AI PRO</h1>", unsafe_allow_html=True)
+    st.title("EduCheck AI - ניהול פדגוגי כיתתי 🎓")
     
-    tab1, tab2, tab3 = st.tabs(["📡 ניתוח נתונים", "📊 ארכיון מערכת", "⚙️ ניהול חשבון"])
+    tab1, tab2 = st.tabs(["🔍 בדיקה חדשה", "📊 ארכיון ודוחות"])
 
     with tab1:
-        col_m, col_s = st.columns([2, 1])
-        with col_m:
-            st.markdown("<div class='tech-card'>", unsafe_allow_html=True)
-            st.subheader("👤 פרטי התלמיד")
-            r1, r2, r3 = st.columns(3)
-            with r1: name = st.text_input("שם מלא:")
-            with r2: grade = st.text_input("כיתה:")
-            with r3: 
-                subs = ["תורה", "נביא", "גמרא", "משנה", "הלכה", "מדעים", "היסטוריה", "עברית/לשון", "אחר..."]
-                subj = st.selectbox("מקצוע:", subs)
-            st.divider()
-            st.subheader("📷 קלט סריקה למאגר")
-            exam_file = st.file_uploader("העלה מבחן לניתוח AI", type=['png', 'jpg', 'jpeg'])
-            cam_shot = st.camera_input("צילום חי מהשטח")
-            st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("📋 פרטי השיעור והכיתה")
+            # בחירת מקצוע
+            subject_list = ["תורה", "נביא", "גמרא", "משנה", "הלכה", "מדעים", "היסטוריה", "עברית/לשון", "אחר..."]
+            subject = st.selectbox("בחר מקצוע:", subject_list)
+            if subject == "אחר...":
+                subject = st.text_input("כתוב את שם המקצוע:")
+            
+            grade_level = st.text_input("איזו כיתה? (למשל: ח'2):")
+            num_students = st.number_input("כמות תלמידים בכיתה:", min_value=1, value=30)
+            student_name = st.text_input("שם התלמיד הנבדק:")
 
-        with col_s:
-            st.markdown("<div class='tech-card'>", unsafe_allow_html=True)
-            st.subheader("⚙️ יצירת מחוון")
-            rubric_f = st.file_uploader("העלה צילום שאלון (אופציונלי)", type=['png', 'jpg', 'jpeg'])
-            if st.button("ייצר מחוון ממאגרי ידע"):
-                with st.spinner("שואב נתונים ממאגרי גוגל..."):
-                    model = genai.GenerativeModel('gemini-1.5-flash')
-                    res = model.generate_content([f"בנה מחוון תשובות מקצועי למבחן ב{subj}. השתמש במאגרי המידע שלך.", Image.open(rubric_f) if rubric_f else ""])
-                    st.session_state.current_rubric = res.text
-            st.session_state.current_rubric = st.text_area("תוכן המחוון לעריכה:", value=st.session_state.current_rubric, height=200)
-            st.markdown("</div>", unsafe_allow_html=True)
+        with col2:
+            st.subheader("🪄 יצירת מחוון")
+            rubric_file = st.file_uploader("העלה צילום שאלון (אופציונלי)", type=['png', 'jpg', 'jpeg'])
+            chat_input = st.text_input("צ'אט עם Gemini לשיפור המחוון:")
+            if st.button("עדכן מחוון 💬"):
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                prompt = f"צור או עדכן מחוון למקצוע {subject}. בקשה: {chat_input}"
+                res = model.generate_content([prompt, Image.open(rubric_file) if rubric_file else ""])
+                st.session_state.current_rubric = res.text
+            
+            final_rubric = st.text_area("מחוון סופי:", value=st.session_state.current_rubric, height=100)
 
-        if st.button("🚀 הרץ ניתוח מול מאגרי גוגל"):
-            active = cam_shot if cam_shot else exam_file
-            if active and name:
-                with st.spinner("מתחבר למאגרי מידע אינסופיים..."):
-                    model = genai.GenerativeModel('gemini-1.5-flash')
-                    # הפרומפט שמפעיל את ה-AI כמאגר ידע
-                    prompt = f"""
-                    אתה משמש כמאגר מידע אינסופי לזיהוי כתב יד עברי. 
-                    בצע ניתוח מעמיק למבחן המצורף של {name} במקצוע {subj}.
-                    השווה את התשובות למחוון הבא: {st.session_state.current_rubric}.
-                    השתמש בכל דגימות הכתב שברשותך במאגרי הענן של גוגל כדי להבין את הכתב בצורה מדויקת.
-                    תחזיר תשובה בעברית: תמלול, ציון, ומשוב פדגוגי.
-                    """
-                    resp = model.generate_content([prompt, Image.open(active)])
-                    txt = resp.text
-                    st.session_state.reports.append({"שם": name, "מקצוע": subj, "כיתה": grade, "תאריך": datetime.now().strftime("%d/%m/%Y"), "דוח": txt})
-                    st.markdown(f"<div class='tech-card' style='border-right: 5px solid #58a6ff;'>{txt}</div>", unsafe_allow_html=True)
+        st.divider()
+        st.subheader("📸 בדיקת התשובות")
+        exam_img = st.file_uploader("העלה את המבחן", type=['png', 'jpg', 'jpeg'], key="exam")
+        cam_img = st.camera_input("או צלם")
+        
+        active_img = cam_img if cam_img else exam_img
+
+        if st.button("בדוק ושמור דוח 🚀") and active_img and student_name:
+            with st.spinner("מנתח..."):
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                prompt = f"נתח מבחן ב{subject} עבור {student_name} מכיתה {grade_level}. השתמש במחוון: {final_rubric}. תן ציון מספרי מודגש ומשוב."
+                response = model.generate_content([prompt, Image.open(active_img)])
+                output = response.text
+                
+                # חילוץ ציון פשוט (חיפוש מספר)
+                score = "".join(filter(str.isdigit, output[:20])) # לוקח מספר מהתחלה
+                
+                st.session_state.reports.append({
+                    "שם": student_name,
+                    "מקצוע": subject,
+                    "כיתה": grade_level,
+                    "ציון": score if score else "נבדק",
+                    "תאריך": datetime.now().strftime("%d/%m/%Y"),
+                    "דוח": output
+                })
+                st.success("הבדיקה נשמרה בארכיון!")
+                st.markdown(f"<div style='background: white; color: black; padding: 20px; border-radius: 12px;'>{output}</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with tab2:
-        st.markdown("<div class='tech-card'>", unsafe_allow_html=True)
-        st.subheader("📊 ארכיון דוחות")
-        for r in reversed(st.session_state.reports):
-            with st.expander(f"📁 {r['תאריך']} | {r['שם']} | {r['מקצוע']}"):
-                st.markdown(r['דוח'])
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.subheader("🔎 סינון דוחות לפי מקצוע")
+        filter_subject = st.selectbox("בחר מקצוע לצפייה:", ["הכל"] + subject_list)
+        
+        filtered_data = st.session_state.reports
+        if filter_subject != "הכל":
+            filtered_data = [r for r in st.session_state.reports if r['מקצוע'] == filter_subject]
 
-    with tab3:
-        st.markdown("<div class='tech-card'>", unsafe_allow_html=True)
-        st.subheader("⚙️ הגדרות מערכת")
-        st.write("המערכת מחוברת כעת למאגרי המידע של Google Vision API.")
-        if st.button("ניתוק ויציאה מהחשבון"):
-            st.session_state.logged_in = False
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+        if filtered_data:
+            for r in reversed(filtered_data):
+                with st.expander(f"📘 {r['מקצוע']} | {r['שם']} | ציון: {r['ציון']} | {r['תאריך']}"):
+                    st.write(f"**כיתה:** {r['כיתה']}")
+                    st.markdown(r['דוח'])
+            
+            df = pd.DataFrame(filtered_data)
+            st.download_button("📥 הורד נתוני מקצוע זה לאקסל", df.to_csv(index=False).encode('utf-8-sig'), "report.csv")
+        else:
+            st.info("לא נמצאו דוחות למקצוע הנבחר.")
+
+    if st.sidebar.button("🚪 יציאה"):
+        st.session_state.logged_in = False
+        st.rerun()
