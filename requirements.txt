@@ -6,5 +6,3 @@ numpy
 opencv-python-headless
 torch --index-url https://download.pytorch.org/whl/cpu
 torchvision --index-url https://download.pytorch.org/whl/cpu
-pyarrow==14.0.1
-datasets==2.16.1
