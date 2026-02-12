@@ -78,12 +78,13 @@ st.markdown("""
         color: white !important; border-radius: 12px; font-weight: 700; width: 100%;
     }
     .exam-preview { border: 3px solid #38bdf8; border-radius: 15px; padding: 10px; background: #1e293b; margin-top: 10px; }
+    .rubric-area { background: #0c4a6e; border-radius: 10px; padding: 15px; border-right: 5px solid #0ea5e9; }
 </style>
 """, unsafe_allow_html=True)
 
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'reports' not in st.session_state: st.session_state.reports = []
-if 'rubric' not in st.session_state: st.session_state.rubric = ""
+if 'rubric_text' not in st.session_state: st.session_state.rubric_text = ""
 
 # --- 4. מסך כניסה ---
 if not st.session_state.logged_in:
@@ -118,67 +119,67 @@ else:
             subject = st.selectbox("מקצוע המבחן:", ["תורה", "גמרא", "מדעים", "עברית", "מתמטיקה", "אחר"])
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # שלב 2: מחוון תשובות (Rubric) עם Gemini
+            # שלב 2: מחוון תשובות (Rubric)
             st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-            st.subheader("2. מחוון תשובות")
+            st.subheader("2. מחוון תשובות (Rubric)")
+            st.write("הגדר ל-AI מהן התשובות הנכונות:")
             
             if st.button("✨ צור מחוון אוטומטי עם Gemini"):
-                with st.spinner("Gemini בונה מחוון..."):
+                with st.spinner("בונה מחוון למקצוע..."):
                     model = genai.GenerativeModel('gemini-1.5-flash')
-                    prompt_rubric = f"צור מחוון תשובות מקצועי ומפורט לבדיקת מבחן ב{subject}. כלול קריטריונים לציון ודוגמאות לתשובות נכונות."
-                    res_rubric = model.generate_content(prompt_rubric)
-                    st.session_state.rubric = res_rubric.text
+                    res_rub = model.generate_content(f"צור מחוון תשובות למבחן ב{subject}. כלול נקודות מרכזיות למענה נכון וקריטריונים לציון.")
+                    st.session_state.rubric_text = res_rub.text
             
-            st.session_state.rubric = st.text_area("ערוך את המחוון כאן:", value=st.session_state.rubric, height=150, help="כאן מפורטות התשובות הנכונות והקריטריונים לציון")
+            st.session_state.rubric_text = st.text_area("ערוך את המחוון (ניתן להדביק כאן תשובות נכונות):", 
+                                                    value=st.session_state.rubric_text, height=200)
             st.markdown("</div>", unsafe_allow_html=True)
 
             # שלב 3: העלאה
             st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
             st.subheader("3. מקור תמונה")
-            up_file = st.file_uploader("העלה צילום:", type=['jpg', 'png', 'jpeg'])
+            up_file = st.file_uploader("העלה מבחן:", type=['jpg', 'png', 'jpeg'])
             cam_file = st.camera_input("צילום ישיר")
             st.markdown("</div>", unsafe_allow_html=True)
 
         with col_preview:
-            st.subheader("🖼️ אזור המבחן ותוצאות")
+            st.subheader("🖼️ אזור המבחן")
             active_img = cam_file if cam_file else up_file
             
             if active_img:
                 img_pil = Image.open(active_img)
                 st.markdown("<div class='exam-preview'>", unsafe_allow_html=True)
-                st.image(img_pil, caption=f"מבחן של: {s_name}", use_container_width=True)
+                st.image(img_pil, caption=f"בדיקת המבחן של {s_name}", use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
                 
-                if st.button("🚀 הרץ בדיקה לפי המחוון"):
-                    if s_name and st.session_state.rubric:
-                        with st.spinner("מנתח כתב יד ומשווה למחוון..."):
+                if st.button("🚀 הרץ בדיקה מול המחוון"):
+                    if s_name and st.session_state.rubric_text:
+                        with st.spinner("מנתח כתב יד ומשווה לתשובות הנכונות..."):
                             # FCN
                             _ = hw_model(prepare_image(img_pil))
                             # Gemini Analysis
                             model = genai.GenerativeModel('gemini-1.5-flash')
                             full_prompt = f"""
-                            נתח את המבחן המצורף של {s_name} במקצוע {subject}.
-                            השתמש במחוון התשובות הבא:
-                            {st.session_state.rubric}
+                            אתה מורה מקצועי שבודק מבחן ב{subject} עבור התלמיד {s_name}.
+                            להלן מחוון התשובות והקריטריונים לבדיקה:
+                            {st.session_state.rubric_text}
                             
-                            דרישות:
-                            1. פענח את כתב היד העברי.
-                            2. השווה את תשובות התלמיד למחוון.
-                            3. תן ציון סופי מודגש (X/100).
-                            4. תן משוב מפורט ובונה בעברית.
+                            משימה:
+                            1. פענח את כתב היד העברי בתמונה.
+                            2. השווה את תשובות התלמיד למחוון שסופק.
+                            3. תן ציון סופי בפורמט: **ציון: XX/100**.
+                            4. פרט משוב פדגוגי בעברית על הטעויות וההצלחות.
                             """
                             res = model.generate_content([full_prompt, img_pil])
                             
-                            # שמירה
                             st.session_state.reports.append({
                                 "שם": s_name, "מקצוע": subject, "דוח": res.text, "תאריך": datetime.now().strftime("%d/%m/%y %H:%M")
                             })
-                            st.markdown("### 📝 תוצאת ניתוח ה-AI:")
+                            st.markdown("### 📝 תוצאות הניתוח:")
                             st.markdown(f"<div class='glass-card'>{res.text}</div>", unsafe_allow_html=True)
                     else:
-                        st.warning("נא לוודא שיש שם תלמיד ומחוון תשובות (ניתן ליצור אחד עם הכפתור למעלה).")
+                        st.warning("חובה להזין שם תלמיד ולוודא שהמחוון אינו ריק.")
             else:
-                st.info("אנא העלה או צלם מבחן כדי להתחיל.")
+                st.info("אנא העלה תמונה של מבחן כדי להתחיל.")
 
     with tab_archive:
         if st.session_state.reports:
@@ -186,7 +187,7 @@ else:
             st.download_button("📥 הורד ציונים לאקסל", df.to_csv(index=False).encode('utf-8-sig'), "grades.csv")
             for r in reversed(st.session_state.reports):
                 with st.expander(f"{r['שם']} - {r['מקצוע']} ({r['תאריך']})"):
-                    st.write(r['דוח'])
+                    st.markdown(r['דוח'])
         else: st.info("אין דוחות שמורים.")
 
     if st.sidebar.button("התנתק 🚪"):
