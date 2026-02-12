@@ -4,159 +4,136 @@ from PIL import Image
 import pandas as pd
 from datetime import datetime
 import torch
+import torch.nn as nn
+from torchvision import models
+import numpy as np
+import cv2
 from datasets import load_dataset
-import io
-
-# ייבוא הלוגיקה של המודל מהקובץ השני - זה מה שחוסך מקום ב-app.py
-from handwriting_logic import FCN32s, prepare_image
 
 # --- 1. הגדרות API וסיסמאות ---
-# מפתח ה-API שלך ל-Gemini
 genai.configure(api_key="AIzaSyDJdiYe4VmudGKFQzoCI_MmngD26D4wm1Q")
 
-# רשימת 10 הסיסמאות המורשות
 ALLOWED_PASSWORDS = [
     "dvir2012", "Teacher2012", "Sunset2012", "מורה2012", "Dvir_2012!",
     "2012EduCheck", "D2012V", "D@2012", "Dvir2012Pro", "Gold2012"
 ]
 
-# --- 2. טעינת משאבים (Caching) ---
+# --- 2. מבנה המודל מהגיטהאב (FCN32s) בתוך הקוד הראשי ---
+class FCN32s(nn.Module):
+    def __init__(self, n_class=2):
+        super(FCN32s, self).__init__()
+        vgg = models.vgg16(pretrained=True)
+        self.features = vgg.features
+        self.classifier = nn.Sequential(
+            nn.Conv2d(512, 4096, 7),
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(),
+            nn.Conv2d(4096, 4096, 1),
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(),
+            nn.Conv2d(4096, n_class, 1),
+        )
+        self.upscore = nn.ConvTranspose2d(n_class, n_class, 64, stride=32, bias=False)
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.classifier(x)
+        x = self.upscore(x)
+        return x
+
+def prepare_image(img_pil):
+    img = np.array(img_pil.convert('RGB'))
+    img = cv2.resize(img, (512, 512))
+    img = img.astype(np.float32) / 255.0
+    img = np.transpose(img, (2, 0, 1))
+    return torch.from_numpy(img).unsqueeze(0)
+
+# --- 3. טעינת משאבים ---
 @st.cache_resource
-def load_all_models():
-    """טעינת המודל מהגיטהאב לזיכרון פעם אחת בלבד"""
+def load_models():
     model = FCN32s(n_class=2)
     model.eval()
     return model
 
 @st.cache_data
-def load_handwriting_samples():
-    """חיבור למחסן הנתונים ב-Hugging Face ששלחת"""
+def load_hf_samples():
     try:
         ds = load_dataset("sivan22/hebrew-handwritten-dataset", split='train', streaming=True)
         return list(ds.take(3))
-    except Exception as e:
-        return None
+    except: return None
 
-# הפעלת הטעינה
-hw_model = load_all_models()
-hf_samples = load_handwriting_samples()
+hw_model = load_models()
+hf_samples = load_hf_samples()
 
-# --- 3. עיצוב הממשק (CSS) ---
+# --- 4. עיצוב הממשק ---
 st.set_page_config(page_title="EduCheck AI Pro", layout="wide")
 st.markdown("""
 <style>
-    .stApp { background-color: #0f172a; color: #f8fafc; direction: rtl; text-align: right; }
-    .main-card { background: rgba(30, 41, 59, 0.8); border: 1px solid #38bdf8; border-radius: 20px; padding: 30px; }
-    .report-box { background: #1e293b; border-right: 5px solid #38bdf8; padding: 15px; border-radius: 8px; margin-top: 10px; }
-    h1, h2, h3 { color: #38bdf8 !important; }
-    .stButton>button { background: linear-gradient(90deg, #38bdf8, #1d4ed8); color: white; border-radius: 10px; border: none; font-weight: bold; }
+    .stApp { background: #0f172a; color: white; direction: rtl; text-align: right; }
+    .card { background: rgba(30, 41, 59, 0.7); border: 1px solid #38bdf8; border-radius: 15px; padding: 20px; }
+    .stButton>button { background: linear-gradient(90deg, #38bdf8, #1d4ed8); color: white; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. ניהול ה-Session ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'reports' not in st.session_state: st.session_state.reports = []
-if 'rubric' not in st.session_state: st.session_state.rubric = "בדוק את התשובות לפי הדיוק בתוכן, הבנה פדגוגית וניסוח."
 
 # --- 5. מסך כניסה ---
 if not st.session_state.logged_in:
-    st.markdown("<div style='height: 15vh;'></div>", unsafe_allow_html=True)
-    _, login_col, _ = st.columns([1, 1.5, 1])
-    with login_col:
-        st.markdown("<div class='main-card' style='text-align: center;'>", unsafe_allow_html=True)
-        st.title("כניסת מורה מורשה")
-        user_pwd = st.text_input("הזן קוד גישה:", type="password")
-        if st.button("כניסה למערכת"):
-            if user_pwd in ALLOWED_PASSWORDS:
+    _, col, _ = st.columns([1, 1.2, 1])
+    with col:
+        st.markdown("<div class='card' style='margin-top:20vh; text-align:center;'>", unsafe_allow_html=True)
+        st.header("כניסת מורה מורשה")
+        pwd = st.text_input("קוד גישה:", type="password")
+        if st.button("התחבר"):
+            if pwd in ALLOWED_PASSWORDS:
                 st.session_state.logged_in = True
                 st.rerun()
-            else:
-                st.error("קוד גישה שגוי. הגישה חסומה.")
+            else: st.error("גישה נדחתה")
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- 6. הממשק הראשי (אחרי התחברות) ---
+# --- 6. המערכת המרכזית ---
 else:
-    st.markdown("<h1 style='text-align: center;'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
+    st.title("EduCheck AI Pro - דביר ויגל טולדנו 🎓")
     
-    # סרגל צד עם מידע מה-Hugging Face
     with st.sidebar:
-        st.subheader("📡 חיבור למסדי נתונים")
+        st.subheader("דגימות מהמחסן (Hugging Face)")
         if hf_samples:
-            st.success("מחובר ל-Hugging Face")
-            for i, sample in enumerate(hf_samples):
-                st.image(sample['image'], caption=f"דגימת כתב יד #{i+1}", width=100)
-        else:
-            st.warning("לא מצליח למשוך דגימות כרגע")
-        
-        st.divider()
-        if st.button("יציאה מהמערכת 🚪"):
+            for s in hf_samples:
+                st.image(s['image'], caption=f"אות: {s['label']}", width=80)
+        if st.button("התנתק"):
             st.session_state.logged_in = False
             st.rerun()
 
-    tab_scan, tab_archive, tab_settings = st.tabs(["🔍 בדיקת מבחן", "📂 ארכיון ציונים", "⚙️ הגדרות מחוון"])
+    tab1, tab2 = st.tabs(["🔍 בדיקת מבחן", "📂 ארכיון"])
 
-    # טאב הגדרות
-    with tab_settings:
-        st.markdown("<div class='main-card'>", unsafe_allow_html=True)
-        st.subheader("עריכת מחוון (Rubric)")
-        st.session_state.rubric = st.text_area("הגדר ל-AI איך לתת ציונים:", value=st.session_state.rubric, height=150)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # טאב בדיקה
-    with tab_scan:
-        col_input, col_res = st.columns([1, 1.2])
+    with tab1:
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            name = st.text_input("שם התלמיד:")
+            subject = st.selectbox("מקצוע:", ["תורה", "גמרא", "מדעים", "עברית"])
+            up_img = st.file_uploader("העלה צילום מבחן:", type=['jpg', 'png'])
+            cam_img = st.camera_input("או צלם עכשיו")
         
-        with col_input:
-            st.markdown("<div class='main-card'>", unsafe_allow_html=True)
-            student_name = st.text_input("שם התלמיד:")
-            subject = st.selectbox("מקצוע:", ["תורה", "גמרא", "מדעים", "עברית", "אחר"])
-            upload_type = st.radio("בחר מקור תמונה:", ["העלאת קובץ", "צילום במצלמה"])
-            
-            img_file = None
-            if upload_type == "העלאת קובץ":
-                img_file = st.file_uploader("בחר תמונת מבחן:", type=['jpg', 'png', 'jpeg'])
-            else:
-                img_file = st.camera_input("צילום המבחן")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with col_res:
-            if st.button("🚀 התחל ניתוח פדגוגי"):
-                if img_file and student_name:
-                    with st.spinner("מנתח כתב יד באמצעות מודל FCN ו-Gemini..."):
-                        # א. עיבוד התמונה במודל הגיטהאב
-                        raw_img = Image.open(img_file)
-                        processed_tensor = prepare_image(raw_img)
-                        with torch.no_grad():
-                            # הרצת המודל מהגיטהאב (הכנה לזיהוי שורות)
-                            _ = hw_model(processed_tensor)
+        with c2:
+            st.subheader("תוצאות ניתוח")
+            active = cam_img if cam_img else up_img
+            if st.button("🚀 הרץ בדיקת AI"):
+                if active and name:
+                    with st.spinner("מנתח כתב יד עברי..."):
+                        img_pil = Image.open(active)
+                        # שלב 1: עיבוד במודל FCN (מהגיטהאב)
+                        _ = hw_model(prepare_image(img_pil))
                         
-                        # ב. ניתוח תוכן באמצעות Gemini 1.5 Flash
+                        # שלב 2: ניתוח Gemini
                         model = genai.GenerativeModel('gemini-1.5-flash')
-                        full_prompt = f"""
-                        אתה מורה מקצועי. נתח את המבחן של {student_name} במקצוע {subject}.
-                        השתמש במחוון הבא: {st.session_state.rubric}
-                        שים לב: הטקסט הוא כתב יד עברי. פענח אותו בזהירות ותן משוב מפורט וציון סופי מודגש.
-                        """
-                        response = model.generate_content([full_prompt, raw_img])
+                        res = model.generate_content([f"נתח מבחן ב{subject} עבור {name}. פענח כתב יד עברי ותן ציון.", img_pil])
                         
-                        # ג. שמירת התוצאה
-                        st.session_state.reports.append({
-                            "שם": student_name,
-                            "מקצוע": subject,
-                            "תאריך": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                            "תוכן": response.text
-                        })
-                        
-                        st.subheader("תוצאת הבדיקה:")
-                        st.markdown(f"<div class='report-box'>{response.text}</div>", unsafe_allow_html=True)
-                else:
-                    st.error("אנא וודא שהזנת שם והעלית תמונה.")
+                        st.session_state.reports.append({"שם": name, "דוח": res.text, "זמן": datetime.now().strftime("%H:%M")})
+                        st.markdown(f"<div class='card'>{res.text}</div>", unsafe_allow_html=True)
+                else: st.warning("מלא שם והעלה תמונה")
 
-    # טאב ארכיון
-    with tab_archive:
-        if st.session_state.reports:
-            for r in reversed(st.session_state.reports):
-                with st.expander(f"📄 {r['שם']} - {r['מקצוע']} ({r['תאריך']})"):
-                    st.markdown(r['תוכן'])
-        else:
-            st.info("אין דוחות שמורים בארכיון.")
+    with tab2:
+        for r in reversed(st.session_state.reports):
+            with st.expander(f"{r['שם']} | {r['זמן']}"):
+                st.write(r['דוח'])
