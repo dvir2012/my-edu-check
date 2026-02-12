@@ -18,11 +18,11 @@ ALLOWED_PASSWORDS = [
     "2012EduCheck", "D2012V", "D@2012", "Dvir2012Pro", "Gold2012"
 ]
 
-# --- 2. מבנה המודל מהגיטהאב (FCN32s) בתוך הקוד הראשי ---
+# --- 2. מודל FCN מהגיטהאב (בתוך הקוד) ---
 class FCN32s(nn.Module):
     def __init__(self, n_class=2):
         super(FCN32s, self).__init__()
-        vgg = models.vgg16(pretrained=True)
+        vgg = models.vgg16(weights='DEFAULT')
         self.features = vgg.features
         self.classifier = nn.Sequential(
             nn.Conv2d(512, 4096, 7),
@@ -58,6 +58,7 @@ def load_models():
 @st.cache_data
 def load_hf_samples():
     try:
+        # שימוש ב-streaming כדי לא להעמיס על הזיכרון
         ds = load_dataset("sivan22/hebrew-handwritten-dataset", split='train', streaming=True)
         return list(ds.take(3))
     except: return None
@@ -65,13 +66,13 @@ def load_hf_samples():
 hw_model = load_models()
 hf_samples = load_hf_samples()
 
-# --- 4. עיצוב הממשק ---
+# --- 4. עיצוב ממשק ---
 st.set_page_config(page_title="EduCheck AI Pro", layout="wide")
 st.markdown("""
 <style>
     .stApp { background: #0f172a; color: white; direction: rtl; text-align: right; }
     .card { background: rgba(30, 41, 59, 0.7); border: 1px solid #38bdf8; border-radius: 15px; padding: 20px; }
-    .stButton>button { background: linear-gradient(90deg, #38bdf8, #1d4ed8); color: white; font-weight: bold; }
+    .stButton>button { background: linear-gradient(90deg, #38bdf8, #1d4ed8); color: white; font-weight: bold; width: 100%; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -97,7 +98,7 @@ else:
     st.title("EduCheck AI Pro - דביר ויגל טולדנו 🎓")
     
     with st.sidebar:
-        st.subheader("דגימות מהמחסן (Hugging Face)")
+        st.subheader("דגימות Hugging Face")
         if hf_samples:
             for s in hf_samples:
                 st.image(s['image'], caption=f"אות: {s['label']}", width=80)
@@ -120,12 +121,10 @@ else:
             active = cam_img if cam_img else up_img
             if st.button("🚀 הרץ בדיקת AI"):
                 if active and name:
-                    with st.spinner("מנתח כתב יד עברי..."):
+                    with st.spinner("מפענח כתב יד ומנתח..."):
                         img_pil = Image.open(active)
-                        # שלב 1: עיבוד במודל FCN (מהגיטהאב)
                         _ = hw_model(prepare_image(img_pil))
                         
-                        # שלב 2: ניתוח Gemini
                         model = genai.GenerativeModel('gemini-1.5-flash')
                         res = model.generate_content([f"נתח מבחן ב{subject} עבור {name}. פענח כתב יד עברי ותן ציון.", img_pil])
                         
