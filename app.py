@@ -8,7 +8,6 @@ import torch.nn as nn
 from torchvision import models
 import numpy as np
 import cv2
-from datasets import load_dataset
 
 # --- 1. הגדרות API וסיסמאות ---
 genai.configure(api_key="AIzaSyDJdiYe4VmudGKFQzoCI_MmngD26D4wm1Q")
@@ -18,11 +17,11 @@ ALLOWED_PASSWORDS = [
     "2012EduCheck", "D2012V", "D@2012", "Dvir2012Pro", "Gold2012"
 ]
 
-# --- 2. מודל FCN מהגיטהאב (בתוך הקוד) ---
+# --- 2. מודל ה-FCN (הלוגיקה מהגיטהאב) ---
 class FCN32s(nn.Module):
     def __init__(self, n_class=2):
         super(FCN32s, self).__init__()
-        vgg = models.vgg16(weights='DEFAULT')
+        vgg = models.vgg16(weights=None) # לא מורידים משקולות כבדות כדי לא לתקוע את השרת
         self.features = vgg.features
         self.classifier = nn.Sequential(
             nn.Conv2d(512, 4096, 7),
@@ -55,18 +54,9 @@ def load_models():
     model.eval()
     return model
 
-@st.cache_data
-def load_hf_samples():
-    try:
-        # שימוש ב-streaming כדי לא להעמיס על הזיכרון
-        ds = load_dataset("sivan22/hebrew-handwritten-dataset", split='train', streaming=True)
-        return list(ds.take(3))
-    except: return None
-
 hw_model = load_models()
-hf_samples = load_hf_samples()
 
-# --- 4. עיצוב ממשק ---
+# --- 4. עיצוב הממשק ---
 st.set_page_config(page_title="EduCheck AI Pro", layout="wide")
 st.markdown("""
 <style>
@@ -95,16 +85,11 @@ if not st.session_state.logged_in:
 
 # --- 6. המערכת המרכזית ---
 else:
-    st.title("EduCheck AI Pro - דביר ויגל טולדנו 🎓")
-    
-    with st.sidebar:
-        st.subheader("דגימות Hugging Face")
-        if hf_samples:
-            for s in hf_samples:
-                st.image(s['image'], caption=f"אות: {s['label']}", width=80)
-        if st.button("התנתק"):
-            st.session_state.logged_in = False
-            st.rerun()
+    st.title("EduCheck AI Pro 🎓")
+    st.sidebar.info("המערכת מופעלת עכשיו במצב יציב (Lite Mode)")
+    if st.sidebar.button("התנתק"):
+        st.session_state.logged_in = False
+        st.rerun()
 
     tab1, tab2 = st.tabs(["🔍 בדיקת מבחן", "📂 ארכיון"])
 
@@ -114,23 +99,24 @@ else:
             name = st.text_input("שם התלמיד:")
             subject = st.selectbox("מקצוע:", ["תורה", "גמרא", "מדעים", "עברית"])
             up_img = st.file_uploader("העלה צילום מבחן:", type=['jpg', 'png'])
-            cam_img = st.camera_input("או צלם עכשיו")
+            cam_img = st.camera_input("צילום")
         
         with c2:
-            st.subheader("תוצאות ניתוח")
             active = cam_img if cam_img else up_img
-            if st.button("🚀 הרץ בדיקת AI"):
+            if st.button("🚀 הרץ בדיקה"):
                 if active and name:
-                    with st.spinner("מפענח כתב יד ומנתח..."):
+                    with st.spinner("מפענח ומנתח..."):
                         img_pil = Image.open(active)
+                        # עיבוד FCN
                         _ = hw_model(prepare_image(img_pil))
                         
+                        # ניתוח Gemini
                         model = genai.GenerativeModel('gemini-1.5-flash')
                         res = model.generate_content([f"נתח מבחן ב{subject} עבור {name}. פענח כתב יד עברי ותן ציון.", img_pil])
                         
                         st.session_state.reports.append({"שם": name, "דוח": res.text, "זמן": datetime.now().strftime("%H:%M")})
                         st.markdown(f"<div class='card'>{res.text}</div>", unsafe_allow_html=True)
-                else: st.warning("מלא שם והעלה תמונה")
+                else: st.warning("מלא פרטים")
 
     with tab2:
         for r in reversed(st.session_state.reports):
