@@ -18,7 +18,7 @@ ALLOWED_PASSWORDS = [
     "2012EduCheck", "D2012V", "D@2012", "Dvir2012Pro", "Gold2012"
 ]
 
-# --- 2. מודל FCN (זיהוי כתב יד מהגיטהאב) ---
+# --- 2. מודל FCN (זיהוי כתב יד) ---
 class FCN32s(nn.Module):
     def __init__(self, n_class=2):
         super(FCN32s, self).__init__()
@@ -69,7 +69,7 @@ st.markdown("""
         margin-bottom: 20px;
     }
     .main-title { 
-        font-size: 3rem; font-weight: 800; text-align: center;
+        font-size: 2.5rem; font-weight: 800; text-align: center;
         background: linear-gradient(90deg, #38bdf8, #818cf8);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
@@ -77,13 +77,14 @@ st.markdown("""
         background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); 
         color: white !important; border-radius: 12px; font-weight: 700; width: 100%;
     }
-    .rubric-box { background: #075985; border-right: 5px solid #38bdf8; padding: 15px; border-radius: 10px; }
+    .result-area { background: #1e293b; border-right: 5px solid #38bdf8; padding: 20px; border-radius: 10px; min-height: 400px; }
 </style>
 """, unsafe_allow_html=True)
 
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'reports' not in st.session_state: st.session_state.reports = []
 if 'rubric' not in st.session_state: st.session_state.rubric = ""
+if 'current_analysis' not in st.session_state: st.session_state.current_analysis = ""
 
 # --- 4. מסך כניסה ---
 if not st.session_state.logged_in:
@@ -102,84 +103,78 @@ if not st.session_state.logged_in:
 
 # --- 5. המערכת המרכזית ---
 else:
-    st.markdown("<h1 class='main-title'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>EduCheck AI Pro - ניהול פדגוגי חכם 🎓</h1>", unsafe_allow_html=True)
     
-    # טאבים ברורים - המחוון קיבל מקום של כבוד
-    tab_rubric, tab_scan, tab_archive = st.tabs(["📝 1. ניהול מחוון תשובות", "🔍 2. בדיקה וניתוח", "📊 3. ארכיון ציונים"])
+    # עמודה ימנית: קלט | עמודה שמאלית: פלט
+    col_input, col_output = st.columns([1, 1])
 
-    # --- טאב 1: מחוון תשובות ---
-    with tab_rubric:
+    with col_input:
         st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-        st.subheader("הגדרת מחוון תשובות (Rubric)")
-        st.write("בחר מקצוע ותן ל-Gemini לבנות לך את התשובות הנכונות, או הקלד אותן בעצמך.")
+        st.subheader("🛠️ אזור העבודה")
         
-        col_r1, col_r2 = st.columns([1, 2])
-        with col_r1:
-            subject = st.selectbox("בחר מקצוע:", ["תורה", "גמרא", "מדעים", "עברית", "מתמטיקה", "אחר"])
-            if st.button("✨ צור מחוון אוטומטי עם Gemini"):
-                with st.spinner("Gemini יוצר תשובות נכונות..."):
+        # בחירת מקצוע ושם
+        c1, c2 = st.columns(2)
+        with c1:
+            subject_active = st.selectbox("שיעור:", ["תורה", "גמרא", "מדעים", "עברית", "מתמטיקה", "אחר"])
+        with c2:
+            s_name = st.text_input("שם התלמיד:")
+
+        # מחוון
+        st.write("**מחוון תשובות:**")
+        if st.button("✨ צור מחוון אוטומטי"):
+            with st.spinner("יוצר..."):
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                res = model.generate_content(f"צור מחוון תשובות למבחן ב{subject_active}.")
+                st.session_state.rubric = res.text
+        st.session_state.rubric = st.text_area("הגדרת תשובות נכונות:", value=st.session_state.rubric, height=150)
+
+        # העלאה
+        up_file = st.file_uploader("העלה/צלם מבחן:", type=['jpg', 'png', 'jpeg'])
+        
+        if st.button("🚀 הרץ בדיקה וניתוח"):
+            if up_file and s_name and st.session_state.rubric:
+                with st.spinner("ה-AI מנתח..."):
+                    img_pil = Image.open(up_file)
+                    # FCN
+                    _ = hw_model(prepare_image(img_pil))
+                    # Gemini
                     model = genai.GenerativeModel('gemini-1.5-flash')
-                    res = model.generate_content(f"צור מחוון תשובות מפורט למבחן ב{subject}. כלול את השאלות הנפוצות והתשובה הנכונה לכל שאלה.")
-                    st.session_state.rubric = res.text
-        
-        with col_r2:
-            st.session_state.rubric = st.text_area("המחוון הפעיל (ניתן לערוך):", value=st.session_state.rubric, height=300)
+                    prompt = f"נתח מבחן ב{subject_active} של {s_name} לפי המחוון: {st.session_state.rubric}. תן ציון ומשוב."
+                    res = model.generate_content([prompt, img_pil])
+                    
+                    st.session_state.current_analysis = res.text
+                    st.session_state.reports.append({
+                        "שם": s_name, "שיעור": subject_active, "דוח": res.text, "זמן": datetime.now().strftime("%d/%m %H:%M")
+                    })
+            else:
+                st.error("וודא שמילאת שם, מחוון והעלית תמונה.")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- טאב 2: בדיקה ---
-    with tab_scan:
-        if not st.session_state.rubric:
-            st.warning("⚠️ שים לב: טרם הגדרת מחוון בטאב הקודם. ה-AI יבדוק באופן כללי.")
-        
-        col_in, col_pre = st.columns([1, 1.2])
-        with col_in:
-            st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-            s_name = st.text_input("שם התלמיד:")
-            up_file = st.file_uploader("העלה צילום מבחן:", type=['jpg', 'png', 'jpeg'])
-            cam_file = st.camera_input("או צלם")
-            st.markdown("</div>", unsafe_allow_html=True)
+    with col_output:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.subheader("📄 משוב פדגוגי לתלמיד")
+        if st.session_state.current_analysis:
+            st.markdown(f"<div class='result-area'>{st.session_state.current_analysis}</div>", unsafe_allow_html=True)
+        else:
+            st.info("כאן יופיע המשוב לאחר שתלחץ על 'הרץ בדיקה'.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        with col_pre:
-            active_img = cam_file if cam_file else up_file
-            if active_img:
-                img_pil = Image.open(active_img)
-                st.image(img_pil, caption=f"בדיקה עבור: {s_name}", use_container_width=True)
-                
-                if st.button("🚀 הרץ בדיקה פדגוגית"):
-                    if s_name:
-                        with st.spinner("מנתח כתב יד ומשווה למחוון..."):
-                            # FCN
-                            _ = hw_model(prepare_image(img_pil))
-                            # Gemini
-                            model = genai.GenerativeModel('gemini-1.5-flash')
-                            prompt = f"""
-                            אתה מורה מקצועי. נתח את המבחן של {s_name} במקצוע {subject}.
-                            השתמש במחוון התשובות הבא כדי לתת ציון:
-                            {st.session_state.rubric}
-                            
-                            דרישות:
-                            1. פענח את כתב היד העברי.
-                            2. השווה את תשובות התלמיד למחוון.
-                            3. תן ציון סופי מודגש.
-                            4. תן משוב מפורט בעברית.
-                            """
-                            res = model.generate_content([prompt, img_pil])
-                            
-                            st.session_state.reports.append({
-                                "שם": s_name, "מקצוע": subject, "דוח": res.text, "זמן": datetime.now().strftime("%d/%m/%y %H:%M")
-                            })
-                            st.markdown(f"<div class='glass-card'>{res.text}</div>", unsafe_allow_html=True)
-                    else: st.error("נא להזין שם תלמיד")
+    st.divider()
 
-    # --- טאב 3: ארכיון ---
-    with tab_archive:
-        if st.session_state.reports:
-            df = pd.DataFrame(st.session_state.reports)
-            st.download_button("📥 הורד ציונים לאקסל", df.to_csv(index=False).encode('utf-8-sig'), "grades.csv")
-            for r in reversed(st.session_state.reports):
-                with st.expander(f"{r['שם']} - {r['מקצוע']} ({r['זמן']})"):
-                    st.markdown(r['דוח'])
-        else: st.info("הארכיון ריק")
+    # --- ארכיון חכם לפי שיעור ---
+    st.subheader("📂 ארכיון ציונים לפי שיעור")
+    filter_sub = st.radio("בחר שיעור להצגת ציונים:", ["תורה", "גמרא", "מדעים", "עברית", "מתמטיקה", "אחר"], horizontal=True)
+    
+    filtered_data = [r for r in st.session_state.reports if r['שיעור'] == filter_sub]
+    
+    if filtered_data:
+        df = pd.DataFrame(filtered_data)
+        st.table(df[['שם', 'זמן']]) # טבלה מהירה של שמות וזמנים
+        for r in reversed(filtered_data):
+            with st.expander(f"דוח עבור {r['שם']} - {r['זמן']}"):
+                st.markdown(r['דוח'])
+    else:
+        st.write(f"אין עדיין ציונים שמורים בשיעור {filter_sub}.")
 
     if st.sidebar.button("התנתק 🚪"):
         st.session_state.logged_in = False
