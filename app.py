@@ -43,14 +43,16 @@ st.markdown("""
         background-color: #1e293b; border-radius: 10px 10px 0 0; padding: 10px 30px; color: white;
     }
     .stTabs [aria-selected="true"] { background-color: #38bdf8 !important; color: #0f172a !important; }
+    .settings-row { border-bottom: 1px solid #334155; padding: 15px 0; }
 </style>
 """, unsafe_allow_html=True)
 
-# אתחול משתני Session
+# אתחול Session
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'reports' not in st.session_state: st.session_state.reports = []
 if 'rubric' not in st.session_state: st.session_state.rubric = ""
 if 'students' not in st.session_state: st.session_state.students = []
+if 'current_user' not in st.session_state: st.session_state.current_user = ""
 
 # --- 3. מסך כניסה ---
 if not st.session_state.logged_in:
@@ -62,6 +64,7 @@ if not st.session_state.logged_in:
         if st.button("התחבר"):
             if pwd in ALLOWED_PASSWORDS:
                 st.session_state.logged_in = True
+                st.session_state.current_user = pwd
                 st.rerun()
             else: st.error("קוד שגוי")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -70,32 +73,21 @@ if not st.session_state.logged_in:
 else:
     st.markdown("<h1 class='main-title'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
     
-    tab_work, tab_archive = st.tabs(["📝 בדיקת מבחן ומחוון", "📂 ארכיון ציונים"])
+    # שלוש כרטיסיות: בדיקה, ארכיון והגדרות
+    tab_work, tab_archive, tab_settings = st.tabs(["📝 בדיקת מבחן ומחוון", "📂 ארכיון ציונים", "⚙️ הגדרות"])
 
+    # --- כרטיסייה 1: עבודה ---
     with tab_work:
         st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-        
-        # --- ניהול רשימת כיתה ---
-        with st.expander("👥 ניהול רשימת תלמידים (הגדר פעם אחת)"):
-            num_students = st.number_input("כמה תלמידים יש בכיתה?", min_value=1, max_value=50, value=1)
-            temp_names = st.text_area("הזן שמות תלמידים (מופרדים בפסיק או בשורה חדשה):")
-            if st.button("עדכן רשימת כיתה"):
-                if temp_names:
-                    st.session_state.students = [s.strip() for s in temp_names.replace('\n', ',').split(',') if s.strip()]
-                    st.success(f"עודכנו {len(st.session_state.students)} תלמידים!")
-
-        st.divider()
-
         col_inputs, col_preview = st.columns([1, 1])
         
         with col_inputs:
             subject_active = st.selectbox("בחר מקצוע לבדיקה:", SUBJECTS)
             
-            # בחירת תלמיד מהרשימה או הקלדה ידנית
             if st.session_state.students:
                 s_name = st.selectbox("בחר שם תלמיד מהרשימה:", st.session_state.students)
             else:
-                s_name = st.text_input("שם התלמיד (לא הוגדרה כיתה):")
+                s_name = st.text_input("שם התלמיד (הכנס ידנית או הגדר כיתה בהגדרות):")
             
             st.write("**ניהול מחוון:**")
             if st.button("✨ צור מחוון אוטומטי"):
@@ -121,13 +113,14 @@ else:
                         st.session_state.reports.append({
                             "שם": s_name, "שיעור": subject_active, "דוח": res.text, "זמן": datetime.now().strftime("%d/%m %H:%M")
                         })
-                else: st.warning("נא לוודא שכל הפרטים מולאו (שם, מחוון ותמונה).")
+                else: st.warning("נא לוודא שכל הפרטים מולאו.")
             
             if 'current_res' in st.session_state:
                 st.markdown("### תוצאה:")
                 st.markdown(f"<div class='result-box'>{st.session_state.current_res}</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # --- כרטיסייה 2: ארכיון ---
     with tab_archive:
         st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
         filter_sub = st.selectbox("סנן ארכיון לפי מקצוע:", ["הצג הכל"] + SUBJECTS)
@@ -143,6 +136,36 @@ else:
             st.info("לא נמצאו ציונים שמורים.")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.sidebar.button("התנתק 🚪"):
-        st.session_state.logged_in = False
-        st.rerun()
+    # --- כרטיסייה 3: הגדרות (ניהול חשבון וכיתה) ---
+    with tab_settings:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.subheader("⚙️ הגדרות מערכת")
+        
+        # ניהול משתמש
+        st.markdown("<div class='settings-row'>", unsafe_allow_html=True)
+        st.write(f"**מחובר כרגע עם קוד:** `{st.session_state.current_user}`")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🚪 התנתק מהחשבון"):
+                st.session_state.logged_in = False
+                st.rerun()
+        with col2:
+            if st.button("🔄 החלף משתמש (נקה הכל)"):
+                st.session_state.logged_in = False
+                st.session_state.reports = []
+                st.session_state.students = []
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # ניהול כיתה (עבר לכאן כדי לא להפריע בבדיקה)
+        st.markdown("<div class='settings-row'>", unsafe_allow_html=True)
+        st.subheader("👥 ניהול רשימת כיתה")
+        temp_names = st.text_area("הזן שמות תלמידים (מופרדים בפסיק או שורה חדשה):", 
+                                 value=", ".join(st.session_state.students) if st.session_state.students else "")
+        if st.button("שמור רשימת תלמידים"):
+            if temp_names:
+                st.session_state.students = [s.strip() for s in temp_names.replace('\n', ',').split(',') if s.strip()]
+                st.success(f"רשימת הכיתה עודכנה! ({len(st.session_state.students)} תלמידים)")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
