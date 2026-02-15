@@ -33,12 +33,20 @@ st.markdown("""
         background: linear-gradient(90deg, #38bdf8, #818cf8);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .instruction-text { color: #38bdf8; font-weight: bold; font-size: 1.1rem; margin-bottom: 10px; }
+    /* תיקון צבע ההוראות ללבן מודגש וקריא */
+    .instruction-text { 
+        color: #ffffff !important; 
+        font-weight: 900 !important; 
+        font-size: 1.2rem; 
+        margin-bottom: 12px;
+        text-shadow: 1px 1px 2px #000000; /* צל שחור עדין לשיפור הקריאות */
+    }
     .stButton>button { 
         background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); 
         color: white !important; border-radius: 10px; font-weight: 700; width: 100%;
     }
-    .result-box { background: #1e293b; border-right: 5px solid #38bdf8; padding: 20px; border-radius: 10px; margin-top: 20px; white-space: pre-wrap; }
+    .result-box { background: #1e293b; border-right: 5px solid #38bdf8; padding: 20px; border-radius: 10px; margin-top: 20px; white-space: pre-wrap; color: #ffffff; }
+    label { color: #ffffff !important; font-weight: bold !important; } /* הפיכת כל הלייבלים ללבן מודגש */
 </style>
 """, unsafe_allow_html=True)
 
@@ -74,12 +82,12 @@ else:
         
         with col_inputs:
             st.markdown("<p class='instruction-text'>**שלב 1: בחירת מקצוע ושם תלמיד**</p>", unsafe_allow_html=True)
-            subject_active = st.selectbox("בחר מקצוע:", SUBJECTS)
+            subject_active = st.selectbox("**בחר מקצוע:**", SUBJECTS)
             
             if st.session_state.students:
-                s_name = st.selectbox("בחר תלמיד מהרשימה:", st.session_state.students)
+                s_name = st.selectbox("**בחר תלמיד מהרשימה:**", st.session_state.students)
             else:
-                s_name = st.text_input("הקלד שם תלמיד (או הגדר כיתה בהגדרות):")
+                s_name = st.text_input("**הקלד שם תלמיד (או הגדר כיתה בהגדרות):**")
             
             st.divider()
             st.markdown("<p class='instruction-text'>**שלב 2: הגדרת מחוון התשובות**</p>", unsafe_allow_html=True)
@@ -94,8 +102,8 @@ else:
                     except Exception as e: st.error(f"שגיאה: {e}")
 
             elif rubric_method == "העלאת קובץ/תמונה":
-                st.markdown("**העלה תמונה של דף התשובות שלך:**")
-                rubric_file = st.file_uploader("בחר קובץ מחוון:", type=['jpg', 'png', 'pdf'])
+                st.markdown("<p style='color:white; font-weight:bold;'>**העלה תמונה של דף התשובות שלך:**</p>", unsafe_allow_html=True)
+                rubric_file = st.file_uploader("**בחר קובץ מחוון:**", type=['jpg', 'png', 'pdf'])
                 if rubric_file and st.button("🔍 סרוק קובץ"):
                     try:
                         img_rubric = Image.open(rubric_file)
@@ -108,8 +116,8 @@ else:
 
         with col_preview:
             st.markdown("<p class='instruction-text'>**שלב 3: העלאת מבחן ובדיקה**</p>", unsafe_allow_html=True)
-            st.markdown("**העלה את צילום המבחן של התלמיד כאן:**")
-            up_file = st.file_uploader("צילום המבחן:", type=['jpg', 'png', 'jpeg'])
+            st.markdown("<p style='color:white; font-weight:bold;'>**העלה את צילום המבחן של התלמיד כאן:**</p>", unsafe_allow_html=True)
+            up_file = st.file_uploader("**צילום המבחן:**", type=['jpg', 'png', 'jpeg'])
             
             if st.button("🚀 הרץ בדיקה וקבל ציון"):
                 if up_file and s_name and st.session_state.rubric:
@@ -134,7 +142,7 @@ else:
     with tab_archive:
         st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
         st.markdown("<p class='instruction-text'>**צפייה בציונים שנשמרו:**</p>", unsafe_allow_html=True)
-        filter_sub = st.selectbox("סנן לפי מקצוע:", ["הכל"] + SUBJECTS)
+        filter_sub = st.selectbox("**סנן לפי מקצוע:**", ["הכל"] + SUBJECTS)
         display_data = st.session_state.reports if filter_sub == "הכל" else [r for r in st.session_state.reports if r['שיעור'] == filter_sub]
         for r in reversed(display_data):
             with st.expander(f"{r['שם']} - {r['שיעור']}"):
