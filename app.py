@@ -11,9 +11,10 @@ import pandas as pd
 from datetime import datetime
 
 # ==========================================
-# 1. הגדרות API ואבטחה (Secrets)
+# 1. הגדרות API ואבטחה (Secrets) - תיקון שמות מודלים
 # ==========================================
-MODEL_NAME = 'gemini-1.5-flash-latest' 
+# שינוי השם לפורמט המלא והתקין ביותר למניעת 404
+MODEL_NAME = 'models/gemini-1.5-flash' 
 
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
@@ -49,7 +50,6 @@ class FCN32s(nn.Module):
         return x
 
 def prepare_image_tensor(img_pil):
-    """הכנת התמונה למודל ה-DL ששלחת"""
     img = np.array(img_pil.convert('RGB'))
     img = cv2.resize(img, (512, 512))
     img = img.astype(np.float32) / 255.0
@@ -57,7 +57,6 @@ def prepare_image_tensor(img_pil):
     return torch.from_numpy(img).unsqueeze(0)
 
 def optimize_image_turbo(upload_file):
-    """דחיסה חכמה להאצת העלאה (Turbo)"""
     img = Image.open(upload_file)
     if img.mode in ("RGBA", "P"): img = img.convert("RGB")
     img.thumbnail((1800, 1800))
@@ -80,7 +79,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# אתחול Session State
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'reports' not in st.session_state: st.session_state.reports = []
 if 'rubric' not in st.session_state: st.session_state.rubric = ""
@@ -114,13 +112,15 @@ else:
             subj = st.selectbox("בחר מקצוע:", SUBJECTS)
             s_name = st.selectbox("בחר תלמיד:", st.session_state.students) if st.session_state.students else st.text_input("שם תלמיד:")
             
-            # יצירת מחוון
             m_type = st.radio("מקור מחוון:", ["AI", "ידני"])
             if m_type == "AI" and st.button("✨ צור מחוון אוטומטי"):
                 with st.spinner("ה-AI בונה תשובות..."):
-                    m = genai.GenerativeModel(MODEL_NAME)
-                    res = m.generate_content(f"צור מחוון תשובות למבחן ב{subj}")
-                    st.session_state.rubric = res.text
+                    try:
+                        m = genai.GenerativeModel(MODEL_NAME)
+                        res = m.generate_content(f"צור מחוון תשובות מפורט למבחן ב{subj}")
+                        st.session_state.rubric = res.text
+                    except Exception as e:
+                        st.error(f"שגיאה ביצירת מחוון: {e}")
             
             st.session_state.rubric = st.text_area("מחוון הבדיקה:", value=st.session_state.rubric, height=150)
 
@@ -131,9 +131,6 @@ else:
                 with st.spinner("מנתח כתב יד עברי..."):
                     try:
                         img = optimize_image_turbo(file)
-                        # הכנת Tensor (הקוד שלך)
-                        _ = prepare_image_tensor(img) 
-                        
                         model = genai.GenerativeModel(MODEL_NAME)
                         prompt = f"פענח כתב יד עברי במבחן {subj} של {s_name}. מחוון: {st.session_state.rubric}. תן ציון ומשוב."
                         response = model.generate_content([prompt, img])
@@ -143,7 +140,7 @@ else:
                             "תאריך": datetime.now().strftime("%d/%m/%y"),
                             "תלמיד": s_name, "מקצוע": subj, "דוח": response.text
                         })
-                    except Exception as e: st.error(f"שגיאה: {e}")
+                    except Exception as e: st.error(f"שגיאה בבדיקה: {e}")
             
             if 'last_res' in st.session_state:
                 st.markdown(f"<div class='result-box'>{st.session_state.last_res}</div>", unsafe_allow_html=True)
