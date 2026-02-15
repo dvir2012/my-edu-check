@@ -8,17 +8,13 @@ import torch.nn as nn
 from torchvision import models
 import numpy as np
 import cv2
-import io
 
 # --- 1. הגדרות API וסיסמאות ---
 genai.configure(api_key="AIzaSyDJdiYe4VmudGKFQzoCI_MmngD26D4wm1Q")
 
-ALLOWED_PASSWORDS = [
-    "dvir2012", "Teacher2012", "Sunset2012", "מורה2012", "Dvir_2012!",
-    "2012EduCheck", "D2012V", "D@2012", "Dvir2012Pro", "Gold2012"
-]
+ALLOWED_PASSWORDS = ["dvir2012", "Teacher2012", "Sunset2012", "מורה2012", "Dvir_2012!"]
 
-# רשימת מקצועות ענקית
+# רשימה ענקית של מקצועות
 SUBJECTS = [
     "תורה", "גמרא", "דינים", "היסטוריה", "מדעים", "עברית", "מתמטיקה", 
     "אנגלית", "גאוגרפיה", "ספרות", "אזרחות", "של''ח", "תנ''ך", "משנה",
@@ -48,13 +44,6 @@ class FCN32s(nn.Module):
         x = self.upscore(x)
         return x
 
-def prepare_image(img_pil):
-    img = np.array(img_pil.convert('RGB'))
-    img = cv2.resize(img, (512, 512))
-    img = img.astype(np.float32) / 255.0
-    img = np.transpose(img, (2, 0, 1))
-    return torch.from_numpy(img).unsqueeze(0)
-
 @st.cache_resource
 def load_hw_model():
     model = FCN32s(n_class=2)
@@ -77,16 +66,16 @@ st.markdown("""
         min-height: 85vh;
     }
     .main-title { 
-        font-size: 2.2rem; font-weight: 800; text-align: center;
+        font-size: 2rem; font-weight: 800; text-align: center;
         background: linear-gradient(90deg, #38bdf8, #818cf8);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         margin-bottom: 20px;
     }
     .stButton>button { 
         background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); 
-        color: white !important; border-radius: 10px; font-weight: 700; width: 100%;
+        color: white !important; border-radius: 10px; font-weight: 700;
     }
-    .result-area { background: #1e293b; border-right: 4px solid #38bdf8; padding: 15px; border-radius: 8px; font-size: 0.9rem; white-space: pre-wrap; }
+    .result-area { background: #1e293b; border-right: 4px solid #38bdf8; padding: 15px; border-radius: 8px; font-size: 0.9rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -100,7 +89,6 @@ if not st.session_state.logged_in:
     _, col, _ = st.columns([1, 1, 1])
     with col:
         st.markdown("<div class='glass-card' style='text-align: center; min-height: auto;'>", unsafe_allow_html=True)
-        st.header("EduCheck - כניסה")
         pwd = st.text_input("קוד גישה:", type="password")
         if st.button("התחבר"):
             if pwd in ALLOWED_PASSWORDS:
@@ -109,78 +97,59 @@ if not st.session_state.logged_in:
             else: st.error("קוד שגוי")
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- 5. המערכת המרכזית (3 עמודות) ---
+# --- 5. המערכת המרכזית (3 עמודות נפרדות) ---
 else:
     st.markdown("<h1 class='main-title'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
     
-    col_work, col_res, col_arch = st.columns([1, 1.2, 0.8])
+    col_work, col_res, col_arch = st.columns([1.1, 1.1, 0.8])
 
-    # --- עמודה 1: עבודה (מחוון + בדיקה) ---
+    # עמודה 1: הכל ביחד - מחוון ובדיקה
     with col_work:
         st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-        st.subheader("📝 הגדרה ובדיקה")
+        subject_active = st.selectbox("בחר מקצוע:", SUBJECTS)
+        s_name = st.text_input("שם התלמיד:")
         
-        subject_active = st.selectbox("בחר מקצוע פעיל:", SUBJECTS)
-        s_name = st.text_input("שם התלמיד הנבדק:")
-
-        st.write("---")
-        st.write("**שלב 1: המחוון**")
+        st.write("**מחוון תשובות:**")
         if st.button("✨ צור מחוון אוטומטי"):
-            with st.spinner("בניית מחוון..."):
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                res = model.generate_content(f"צור מחוון תשובות מפורט למבחן ב{subject_active}.")
-                st.session_state.rubric = res.text
-        st.session_state.rubric = st.text_area("תוכן המחוון:", value=st.session_state.rubric, height=120)
-
-        st.write("---")
-        st.write("**שלב 2: העלאה**")
-        up_file = st.file_uploader("בחר צילום מבחן:", type=['jpg', 'png', 'jpeg'])
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            res = model.generate_content(f"צור מחוון תשובות למבחן ב{subject_active}.")
+            st.session_state.rubric = res.text
+        st.session_state.rubric = st.text_area("ערוך מחוון:", value=st.session_state.rubric, height=150)
         
-        if st.button("🚀 הרץ בדיקה עכשיו"):
+        st.write("**בדיקת מבחן:**")
+        up_file = st.file_uploader("העלה צילום:", type=['jpg', 'png', 'jpeg'])
+        
+        if st.button("🚀 הרץ בדיקה"):
             if up_file and s_name and st.session_state.rubric:
                 with st.spinner("מנתח..."):
                     img_pil = Image.open(up_file)
-                    _ = hw_model(prepare_image(img_pil))
                     model = genai.GenerativeModel('gemini-1.5-flash')
-                    prompt = f"נתח מבחן ב{subject_active} של {s_name} לפי המחוון: {st.session_state.rubric}. תן ציון ומשוב פדגוגי."
+                    prompt = f"נתח מבחן ב{subject_active} של {s_name} לפי המחוון: {st.session_state.rubric}. תן ציון ומשוב."
                     res = model.generate_content([prompt, img_pil])
-                    
                     st.session_state.current_analysis = res.text
                     st.session_state.reports.append({
-                        "שם": s_name, "שיעור": subject_active, "דוח": res.text, "זמן": datetime.now().strftime("%d/%m %H:%M")
+                        "שם": s_name, "שיעור": subject_active, "דוח": res.text, "זמן": datetime.now().strftime("%H:%M")
                     })
-            else: st.error("מלא שם, מחוון ותמונה")
+            else: st.warning("מלא את כל השדות")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- עמודה 2: משוב פדגוגי (תוצאה) ---
+    # עמודה 2: תוצאה בלבד
     with col_res:
         st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-        st.subheader("📄 תוצאת הבדיקה")
+        st.subheader("📄 משוב פדגוגי")
         if st.session_state.current_analysis:
             st.markdown(f"<div class='result-area'>{st.session_state.current_analysis}</div>", unsafe_allow_html=True)
-        else:
-            st.info("כאן יופיע הניתוח לאחר הלחיצה על 'הרץ בדיקה'.")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- עמודה 3: ארכיון תלמידים (ללא כותרות מיותרות) ---
+    # עמודה 3: ארכיון נפרד
     with col_arch:
         st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-        # כאן אין כותרת "היסטוריה", ישר בחירת המקצוע
-        filter_sub = st.selectbox("בחר מקצוע לצפייה בארכיון:", ["הצג הכל"] + SUBJECTS)
-        
+        filter_sub = st.selectbox("סינון ארכיון לפי מקצוע:", ["הכל"] + SUBJECTS)
         st.write("---")
         
-        display_data = st.session_state.reports if filter_sub == "הצג הכל" else [r for r in st.session_state.reports if r['שיעור'] == filter_sub]
+        display_data = st.session_state.reports if filter_sub == "הכל" else [r for r in st.session_state.reports if r['שיעור'] == filter_sub]
         
-        if display_data:
-            for r in reversed(display_data):
-                with st.expander(f"{r['שם']} | {r['זמן']}"):
-                    st.caption(f"מקצוע: {r['שיעור']}")
-                    st.markdown(r['דוח'])
-        else:
-            st.write("אין ציונים שמורים למקצוע זה.")
+        for r in reversed(display_data):
+            with st.expander(f"{r['שם']} ({r['זמן']})"):
+                st.markdown(r['דוח'])
         st.markdown("</div>", unsafe_allow_html=True)
-
-    if st.sidebar.button("התנתק 🚪"):
-        st.session_state.logged_in = False
-        st.rerun()
