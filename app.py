@@ -18,10 +18,10 @@ ALLOWED_PASSWORDS = [
     "2012EduCheck", "D2012V", "D@2012", "Dvir2012Pro", "Gold2012"
 ]
 
-# רשימת מקצועות מורחבת
+# רשימת מקצועות מורחבת - תוקן העניין של של"ח
 SUBJECTS = [
     "תורה", "גמרא", "היסטוריה", "מדעים", "עברית", "מתמטיקה", 
-    "אנגלית", "גאוגרפיה", "ספרות", "אזרחות", "של"ח", "אחר"
+    "אנגלית", "גאוגרפיה", "ספרות", "אזרחות", "של''ח", "אחר"
 ]
 
 # --- 2. מודל FCN (זיהוי כתב יד) ---
@@ -137,10 +137,8 @@ else:
             if up_file and s_name and st.session_state.rubric:
                 with st.spinner("מנתח כתב יד ומשווה למחוון..."):
                     img_pil = Image.open(up_file)
-                    # ניתוח FCN (תשתית)
                     _ = hw_model(prepare_image(img_pil))
                     
-                    # ניתוח תוכן Gemini
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     prompt = f"""
                     אתה מורה מקצועי ל{subject_active}. נתח את המבחן של {s_name}.
@@ -158,7 +156,7 @@ else:
                     st.session_state.reports.append({
                         "שם": s_name, "שיעור": subject_active, "דוח": res.text, "זמן": datetime.now().strftime("%d/%m %H:%M")
                     })
-            else: st.error("אנא מלא את כל הפרטים (שם, מחוון ותמונה)")
+            else: st.error("אנא מלא את כל הפרטים")
         st.markdown("</div>", unsafe_allow_html=True)
 
     # --- עמודה 2: תוצאה בזמן אמת ---
@@ -174,14 +172,11 @@ else:
     # --- עמודה 3: ארכיון מסונן ---
     with col_archive:
         st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-        st.subheader("📂 היסטוריה וציונים")
+        st.subheader("📂 היסטוריה")
         
-        filter_sub = st.selectbox("סנן ארכיון לפי:", ["הכל"] + SUBJECTS)
+        filter_sub = st.selectbox("סנן לפי שיעור:", ["הכל"] + SUBJECTS)
         
-        if filter_sub == "הכל":
-            display_data = st.session_state.reports
-        else:
-            display_data = [r for r in st.session_state.reports if r['שיעור'] == filter_sub]
+        display_data = st.session_state.reports if filter_sub == "הכל" else [r for r in st.session_state.reports if r['שיעור'] == filter_sub]
         
         if display_data:
             for r in reversed(display_data):
@@ -189,7 +184,7 @@ else:
                     st.caption(f"שיעור: {r['שיעור']}")
                     st.markdown(r['דוח'])
         else:
-            st.write("אין נתונים שמורים.")
+            st.write("אין נתונים.")
         st.markdown("</div>", unsafe_allow_html=True)
 
     if st.sidebar.button("התנתק 🚪"):
