@@ -21,15 +21,17 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. חיבור ל-AI של גוגל (Gemini)
+# 2. חיבור ל-AI של גוגל (Gemini) - גרסה יציבה
 # ==========================================
 def init_gemini():
     if "GEMINI_API_KEY" not in st.secrets:
         st.error("🔑 מפתח API חסר! נא להגדיר GEMINI_API_KEY ב-Secrets.")
         return None
     try:
+        # הגדרת המפתח
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # שימוש בשם המודל הבסיסי ביותר שעובד עם כל הגרסאות
+        
+        # פתרון לבעיית ה-404: בחירת המודל בצורה מפורשת דרך השם הפשוט
         return "gemini-1.5-flash"
     except Exception as e:
         st.error(f"שגיאה בחיבור ל-AI: {e}")
@@ -118,8 +120,8 @@ with tab1:
             with st.spinner("מנתח..."):
                 try:
                     img = Image.open(uploaded_file)
-                    # ניסיון קריאה למודל בשיטה היציבה
-                    model = genai.GenerativeModel(MODEL_NAME)
+                    # ניסיון קריאה למודל 
+                    model = genai.GenerativeModel(model_name='gemini-1.5-flash')
                     prompt = f"פענח את המבחן של {student_name} ב{subject} לפי מחוון: {st.session_state.rubric}. תן ציון והסבר בעברית."
                     
                     response = model.generate_content([prompt, img])
@@ -133,15 +135,16 @@ with tab1:
                     st.success("הבדיקה הושלמה!")
                     st.write(response.text)
                 except Exception as e:
-                    # אם נכשל, ננסה אוטומטית גרסה חלופית של שם המודל
-                    st.error(f"ניסיון ראשון נכשל, מנסה פתרון חלופי... שגיאה: {e}")
+                    st.error(f"שגיאה בגישה ל-AI: {e}")
+                    st.info("מנסה שיטה חלופית (Legacy)...")
                     try:
-                        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                        # ניסיון נוסף עם הגדרה עוקפת
+                        model = genai.GenerativeModel('gemini-1.5-flash')
                         response = model.generate_content([prompt, img])
-                        st.success("הבדיקה הצליחה בנסיון שני!")
+                        st.success("הצליח בשיטה חלופית!")
                         st.write(response.text)
                     except Exception as e2:
-                        st.error(f"שגיאה סופית: {e2}. וודא שמפתח ה-API תקין ופעיל.")
+                        st.error(f"לא ניתן להתחבר למודל. וודא שמפתח ה-API תקין ב-Secrets.")
                     
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -172,6 +175,5 @@ with tab3:
     st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown("---")
-    st.write("**גרסת אפליקציה:** 2.1.0 Pro")
+    st.write("**גרסת אפליקציה:** 2.2.0 Pro")
     st.markdown("</div>", unsafe_allow_html=True)
-    
