@@ -1,8 +1,8 @@
-google-generativeai>=0.8.3
 streamlit
-Pillow
+google-generativeai>=0.7.2
+pillow
 torch
 torchvision
+numpy
 opencv-python-headless
 pandas
-numpy
