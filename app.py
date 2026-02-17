@@ -103,7 +103,7 @@ with tab1:
     with col2:
         file = st.file_uploader("העלה צילום מבחן (כתב יד):", type=['jpg', 'jpeg', 'png'])
         
-        if st.button("🚀 בדוק מבחן"):
+        if st.button("🚀 דביר סעדיה"):
             if not file or not student_name:
                 st.warning("נא להזין שם תלמיד ולהעלות קובץ.")
             else:
