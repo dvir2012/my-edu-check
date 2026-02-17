@@ -24,14 +24,13 @@ st.set_page_config(
 # 2. חיבור ל-AI של גוגל (Gemini)
 # ==========================================
 def init_gemini():
-    # בדיקה אם המפתח קיים ב-Secrets
     if "GEMINI_API_KEY" not in st.secrets:
         st.error("🔑 מפתח API חסר! נא להגדיר GEMINI_API_KEY ב-Secrets.")
         return None
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # תיקון: הוספת models/ לשם המודל כדי למנוע שגיאת 404
-        return "models/gemini-1.5-flash"
+        # שימוש בשם המודל הבסיסי ביותר שעובד עם כל הגרסאות
+        return "gemini-1.5-flash"
     except Exception as e:
         st.error(f"שגיאה בחיבור ל-AI: {e}")
         return None
@@ -106,9 +105,12 @@ with tab1:
         subject = st.text_input("מקצוע:", "תורה")
         if st.button("✨ צור מחוון אוטומטי"):
             if MODEL_NAME:
-                model = genai.GenerativeModel(MODEL_NAME)
-                res = model.generate_content(f"צור מחוון תשובות למבחן ב{subject}")
-                st.session_state.rubric = res.text
+                try:
+                    model = genai.GenerativeModel(MODEL_NAME)
+                    res = model.generate_content(f"צור מחוון תשובות למבחן ב{subject}")
+                    st.session_state.rubric = res.text
+                except Exception as e:
+                    st.error(f"שגיאה ביצירת מחוון: {e}")
         st.session_state.rubric = st.text_area("מחוון הבדיקה:", value=st.session_state.rubric, height=200)
     with col2:
         uploaded_file = st.file_uploader("העלה צילום מבחן:", type=['jpg', 'jpeg', 'png'])
@@ -116,7 +118,7 @@ with tab1:
             with st.spinner("מנתח..."):
                 try:
                     img = Image.open(uploaded_file)
-                    # שימוש ב-MODEL_NAME המעודכן (עם models/)
+                    # ניסיון קריאה למודל בשיטה היציבה
                     model = genai.GenerativeModel(MODEL_NAME)
                     prompt = f"פענח את המבחן של {student_name} ב{subject} לפי מחוון: {st.session_state.rubric}. תן ציון והסבר בעברית."
                     
@@ -131,7 +133,15 @@ with tab1:
                     st.success("הבדיקה הושלמה!")
                     st.write(response.text)
                 except Exception as e:
-                    st.error(f"שגיאה במהלך הבדיקה: {e}")
+                    # אם נכשל, ננסה אוטומטית גרסה חלופית של שם המודל
+                    st.error(f"ניסיון ראשון נכשל, מנסה פתרון חלופי... שגיאה: {e}")
+                    try:
+                        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                        response = model.generate_content([prompt, img])
+                        st.success("הבדיקה הצליחה בנסיון שני!")
+                        st.write(response.text)
+                    except Exception as e2:
+                        st.error(f"שגיאה סופית: {e2}. וודא שמפתח ה-API תקין ופעיל.")
                     
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -162,6 +172,6 @@ with tab3:
     st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown("---")
-    st.write("**גרסת אפליקציה:** 2.0.0 Pro")
+    st.write("**גרסת אפליקציה:** 2.1.0 Pro")
     st.markdown("</div>", unsafe_allow_html=True)
     
