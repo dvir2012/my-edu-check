@@ -12,10 +12,10 @@ from datetime import datetime
 import os
 
 # ==========================================
-# הגדרת שם האפליקציה למיתוג והורדה
+# 1. הגדרות מיתוג ושם האפליקציה (זה מה שחיפשת!)
 # ==========================================
 st.set_page_config(
-    page_title="EduCheck AI", 
+    page_title="EduCheck AI", # זה השם שיופיע במחשב כשתתקין
     page_icon="🎓", 
     layout="wide"
 )
