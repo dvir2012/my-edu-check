@@ -46,11 +46,10 @@ def init_gemini():
        # רשימת מודלים לנסות לפי סדר עדיפות
         # המודל gemini-1.5-flash לא זמין ב-v1beta, אז ננסה מודלים אחרים
         model_names = [
-            'gemini-1.5-flash-latest',  # גרסה מעודכנת של 1.5-flash
-            'gemini-2.0-flash-exp',     # גרסה ניסיונית של 2.0
-            'gemini-1.5-pro-latest',    # גרסה חזקה יותר
-            'gemini-pro',                # מודל בסיסי
-        ]
+                'gemini-1.5-pro',            # מודל יציב ותומך בתמונות
+                'gemini-pro',                 # מודל בסיסי ויציב
+                'gemini-2.0-flash-exp',       # גרסה ניסיונית (אם זמינה)
+            ]
         
         # נסה כל מודל עד שאחד עובד
         last_error = None
