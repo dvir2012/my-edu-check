@@ -36,7 +36,7 @@ def load_from_db():
 init_db()
 
 # ==========================================
-# 2. עיצוב וחיבור AI
+# 2. עיצוב הממשק (CSS)
 # ==========================================
 st.set_page_config(page_title="EduCheck AI Pro", page_icon="🎓", layout="wide")
 
@@ -47,7 +47,6 @@ st.markdown("""
     .glass-card { background: rgba(30, 41, 59, 0.7); border: 1px solid #38bdf8; border-radius: 15px; padding: 25px; margin-bottom: 20px; }
     .stButton>button { background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); color: white !important; font-weight: 700; border-radius: 10px; border: none; width: 100%; }
     label, p, .stMarkdown { color: white !important; font-weight: 600; }
-    .stTabs [data-baseweb="tab"] { color: white !important; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -59,14 +58,15 @@ def init_gemini():
     return genai.GenerativeModel('gemini-1.5-flash')
 
 if 'rubric' not in st.session_state:
-    st.session_state.rubric = "מחוון ברירת מחדל: בדוק דיוק, הבנה, דקדוק והלכה/היסטוריה. תן נקודות חלקיות לכל שאלה."
+    st.session_state.rubric = "מחוון: בדוק הבנה עמוקה, דיוק בפרטים ושימוש במושגים נכונים."
 
 # ==========================================
-# 3. ממשק המשתמש (Tabs)
+# 3. הממשק המרכזי
 # ==========================================
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>מערכת חכמה לניתוח מבחנים בכתב יד עברי</p>", unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["📄 בדיקה ומחוון", "📊 ארכיון שמור", "⚙️ הגדרות"])
+tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן", "📊 ארכיון", "⚙️ הגדרות"])
 
 with tab1:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
@@ -78,67 +78,63 @@ with tab1:
         if st.button("✨ צור מחוון אוטומטי"):
             model_ai = init_gemini()
             if model_ai:
-                with st.spinner("מייצר מחוון..."):
-                    res = model_ai.generate_content(f"צור מחוון תשובות למבחן ב{subject}")
-                    st.session_state.rubric = res.text
+                res = model_ai.generate_content(f"צור מחוון תשובות למבחן ב{subject}")
+                st.session_state.rubric = res.text
         st.session_state.rubric = st.text_area("מחוון הבדיקה:", value=st.session_state.rubric, height=200)
     
     with col2:
-        file = st.file_uploader("העלה צילום מבחן:", type=['jpg', 'jpeg', 'png'])
-        if st.button("🚀 בדוק מבחן") and file and student_name:
-            with st.spinner("Gemini מנתח את כתב היד..."):
+        file = st.file_uploader("העלה צילום של המבחן (כתב יד):", type=['jpg', 'jpeg', 'png'])
+        if st.button("🚀 בדוק מבחן בכתב יד") and file and student_name:
+            with st.spinner("מפענח כתב יד עברי ומנתח..."):
                 try:
                     img = Image.open(file)
                     model_ai = init_gemini()
                     
-                    # פרומפט חזק שמחליף את הצורך ב-OCR חיצוני
+                    # הפרומפט המשופר להתמקדות בכתב יד עברי
                     prompt = f"""
-                    משימה: בצע OCR לכתב היד העברי בתמונה ולאחר מכן בדוק את המבחן.
+                    אתה בוחן מומחה המיומן בפענוח כתב יד עברי.
                     
-                    שם התלמיד: {student_name}
-                    מקצוע: {subject}
-                    מחוון בדיקה: {st.session_state.rubric}
+                    משימה:
+                    1. סרוק את התמונה המצורפת ופענח את כל הטקסט שנכתב בכתב יד עברי (Handwritten Hebrew).
+                    2. שים לב במיוחד לאותיות דומות (כמו ד' ו-ר', כ' ו-ב') והשתמש בהקשר המשפט כדי להבין את המילה.
+                    3. השווה את התשובות שפענחת אל מול המחוון הבא: {st.session_state.rubric}
                     
-                    הוראות:
-                    1. זהה את הטקסט הכתוב בעברית בתמונה (גם אם הוא נמהר או צפוף).
-                    2. השווה את התשובות למחוון.
-                    3. ענה בעברית בפורמט הבא בלבד:
+                    פרטים:
+                    - שם התלמיד: {student_name}
+                    - המקצוע: {subject}
                     
-                    ציון: [מספר בין 1 ל-100]
+                    תשובה נדרשת בעברית בפורמט הבא:
+                    ציון סופי: [מספר]
                     
-                    מה היה טוב:
-                    [פירוט]
+                    פירוט מה היה טוב:
+                    [כאן תכתוב מה התלמיד ידע]
                     
-                    מה היה לא טוב:
-                    [פירוט]
+                    נקודות לשיפור:
+                    [כאן תכתוב מה חסר או טעות]
                     
-                    הסבר לכל שאלה:
-                    [פירוט של מה התלמיד כתב לעומת מה שהיה צריך לכתוב]
+                    פענוח הטקסט שזוהה (לביקורת):
+                    [כאן תציג את מה שהבנת מהכתב יד של התלמיד]
                     """
                     
                     response = model_ai.generate_content([prompt, img])
-                    
-                    # שמירה לארכיון
                     save_to_db(student_name, subject, response.text)
                     
-                    st.success("הבדיקה הושלמה!")
+                    st.success("הניתוח הושלם!")
                     st.markdown("---")
                     st.write(response.text)
                 except Exception as e:
-                    st.error(f"שגיאה בניתוח המבחן: {e}")
+                    st.error(f"שגיאה בניתוח: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab2:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-    db_data = load_from_db()
-    if not db_data.empty:
-        st.dataframe(db_data, use_container_width=True)
-        csv = db_data.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 הורד אקסל (CSV)", data=csv, file_name="archive.csv")
+    df = load_from_db()
+    if not df.empty:
+        st.dataframe(df, use_container_width=True)
     else: st.info("הארכיון ריק.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab3:
-    if st.button("🔴 מחיקת ארכיון"):
+    if st.button("🔴 נקה הכל"):
         conn = sqlite3.connect('results.db'); conn.execute("DELETE FROM exams"); conn.commit(); conn.close()
         st.rerun()
