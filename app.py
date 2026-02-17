@@ -4,6 +4,7 @@ from PIL import Image
 import pandas as pd
 from datetime import datetime
 import sqlite3
+import io
 
 # ==========================================
 # 1. בסיס נתונים (SQLite)
@@ -33,37 +34,18 @@ def load_from_db():
     return df
 
 # ==========================================
-# 2. הגדרות AI (תיקון שגיאת 404)
+# 2. הגדרות AI (התיקון המרכזי לשגיאת 404)
 # ==========================================
 def init_gemini():
-    # בדיקה אם המפתח קיים ב-Secrets
     if "GEMINI_API_KEY" not in st.secrets:
-        st.error("🔑 מפתח API חסר ב-Secrets! אנא הוסף אותו בלוח הבקרה של Streamlit.")
+        st.error("🔑 מפתח API חסר ב-Secrets!")
         return None
     
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-       # רשימת מודלים לנסות לפי סדר עדיפות
-        # המודל gemini-1.5-flash לא זמין ב-v1beta, אז ננסה מודלים אחרים
-        model_names = [
-                'gemini-1.5-pro',            # מודל יציב ותומך בתמונות
-                'gemini-pro',                 # מודל בסיסי ויציב
-                'gemini-2.0-flash-exp',       # גרסה ניסיונית (אם זמינה)
-            ]
-        
-        # נסה כל מודל עד שאחד עובד
-        last_error = None
-        for model_name in model_names:
-            try:
-                model = genai.GenerativeModel(model_name)
-                return model
-            except Exception as e:
-                last_error = e
-                continue
-        
-        # אם אף מודל לא עבד, החזר שגיאה עם פרטים
-        st.error(f"לא הצלחתי למצוא מודל זמין. שגיאה אחרונה: {last_error}")
-        return None
+        # שימוש במודל הפלאש העדכני ביותר - הוא היציב ביותר לתמונות וטקסט בעברית
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        return model
     except Exception as e:
         st.error(f"שגיאה בחיבור ל-Gemini: {e}")
         return None
@@ -85,7 +67,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# אתחול מסד הנתונים
 init_db()
 
 # ==========================================
@@ -111,7 +92,8 @@ with tab1:
             if model:
                 with st.spinner("מייצר מחוון..."):
                     try:
-                        res = model.generate_content(f"צור מחוון תשובות מפורט למבחן בנושא {subject} בעברית.")
+                        # הוספת הוראה ברורה לעברית
+                        res = model.generate_content(f"צור מחוון תשובות מפורט למבחן בנושא {subject} בשפה העברית.")
                         st.session_state.rubric = res.text
                     except Exception as e:
                         st.error(f"שגיאה ביצירת מחוון: {e}")
@@ -125,28 +107,38 @@ with tab1:
             if not file or not student_name:
                 st.warning("נא להזין שם תלמיד ולהעלות קובץ.")
             else:
-                with st.spinner("מפענח כתב יד ומנתח תוצאות..."):
+                with st.spinner("מזהה כתב יד עברי ומנתח תוצאות..."):
                     try:
                         img = Image.open(file)
                         model = init_gemini()
                         
                         if model:
+                            # פרומפט ממוקד בכתב יד עברי כפי שביקשת
                             prompt = f"""
-                            משימה: פענוח כתב יד עברי ובדיקת מבחן עבור התלמיד {student_name}.
-                            נושא המבחן: {subject}
-                            מחוון תשובות: {st.session_state.rubric}
+                            משימה: פענוח כתב יד עברי (Handwritten Hebrew) ובדיקת מבחן.
                             
-                            הוראות:
-                            1. פענח את כתב היד בתמונה.
-                            2. השווה את התשובות למחוון.
-                            3. תן ציון הוגן.
+                            פרטי המבחן:
+                            - תלמיד: {student_name}
+                            - נושא: {subject}
+                            - מחוון לתיקון: {st.session_state.rubric}
                             
-                            ענה בעברית בפורמט הבא:
+                            הוראות לעבודה:
+                            1. זהה את הטקסט בעברית מהתמונה. שים לב לאותיות דומות בכתב יד.
+                            2. השווה את תוכן התשובות למחוון שסופק.
+                            3. תן ציון הוגן והסבר את השיקולים.
+                            
+                            ענה בעברית מלאה בפורמט הבא:
                             ## תוצאות עבור {student_name}
                             **ציון סופי:** [מספר]
-                            **מה היה טוב:** [פירוט]
-                            **נקודות לשיפור:** [פירוט]
-                            **הטקסט שזוהה מהמבחן:** [הצג את תוכן התשובות]
+                            
+                            **מה היה טוב:**
+                            [פירוט]
+                            
+                            **נקודות לשיפור:**
+                            [פירוט]
+                            
+                            **הטקסט שזוהה מהמבחן (OCR):**
+                            [הצג כאן את מה שפענחת מכתב היד של התלמיד]
                             """
                             
                             response = model.generate_content([prompt, img])
