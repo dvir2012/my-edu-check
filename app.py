@@ -1,9 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
-import torch
-import torch.nn as nn
-from torchvision import models
 import cv2
 import numpy as np
 import pandas as pd
@@ -14,16 +11,19 @@ import io
 import os
 
 # ==========================================
-# 1. בסיס נתונים (SQLite) - שמירה לצמיתות
+# 1. בסיס נתונים (SQLite) - יציב וקבוע
 # ==========================================
 def init_db():
-    conn = sqlite3.connect('results.db', check_same_thread=False)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS exams 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  date TEXT, student_name TEXT, subject TEXT, result TEXT)''')
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect('results.db', check_same_thread=False)
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS exams 
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                      date TEXT, student_name TEXT, subject TEXT, result TEXT)''')
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        st.error(f"שגיאה באתחול בסיס הנתונים: {e}")
 
 def save_to_db(name, subject, result):
     conn = sqlite3.connect('results.db', check_same_thread=False)
@@ -43,75 +43,48 @@ def load_from_db():
 init_db()
 
 # ==========================================
-# 2. זיהוי כתב יד (EasyOCR) - עם מנגנון הגנה
+# 2. EasyOCR - שיפור 1: עיבוד תמונה וסדר שורות
 # ==========================================
 @st.cache_resource
 def load_ocr():
     try:
-        # ניסיון טעינה עם קוד עברית סטנדרטי
+        # ניסיון טעינה עם קוד עברית סטנדרטי, ללא GPU למניעת קריסות ב-Cloud
         return easyocr.Reader(['he', 'en'], gpu=False)
-    except Exception:
-        try:
-            # ניסיון עם קוד שפה חלופי
-            return easyocr.Reader(['heb', 'en'], gpu=False)
-        except:
-            return None
+    except:
+        return None
 
 reader = load_ocr()
 
 def perform_ocr(image):
-    if reader is None: return "OCR Service Unavailable"
-    img_array = np.array(image)
-    results = reader.readtext(img_array, detail=0)
-    return " ".join(results)
+    if reader is None:
+        return "שירות ה-OCR לא זמין כרגע."
+    
+    # המרה ל-numpy ועיבוד מקדים (Preprocessing)
+    img_array = np.array(image.convert('RGB'))
+    gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+    
+    # שיפור קונטרסט (Contrast Enhancement) - עוזר לכתב יד חלש
+    enhanced = cv2.convertScaleAbs(gray, alpha=1.2, beta=10)
+    
+    # זיהוי עם paragraph=True לשמירה על מבנה שורות (שיפור 2)
+    results = reader.readtext(enhanced, detail=0, paragraph=True)
+    return "\n".join(results)
 
 # ==========================================
-# 3. מודל ה-PyTorch (FCN32s) - המבנה המקורי
-# ==========================================
-class FCN32s(nn.Module):
-    def __init__(self, n_class=21):
-        super(FCN32s, self).__init__()
-        vgg = models.vgg16(weights='DEFAULT')
-        self.features = vgg.features
-        self.classifier = nn.Sequential(
-            nn.Conv2d(512, 4096, 7),
-            nn.ReLU(inplace=True),
-            nn.Dropout2d(),
-            nn.Conv2d(4096, 4096, 1),
-            nn.ReLU(inplace=True),
-            nn.Dropout2d(),
-            nn.Conv2d(4096, n_class, 1),
-        )
-        self.upscore = nn.ConvTranspose2d(n_class, n_class, 64, stride=32, bias=False)
-
-    def forward(self, x):
-        x = self.features(x)
-        x = self.classifier(x)
-        x = self.upscore(x)
-        return x
-
-@st.cache_resource
-def load_pytorch_model():
-    model = FCN32s(n_class=2) 
-    model.eval()
-    return model
-
-pytorch_model = load_pytorch_model()
-
-# ==========================================
-# 4. עיצוב (CSS) וחיבור AI
+# 3. עיצוב (CSS) וחיבור AI
 # ==========================================
 st.set_page_config(page_title="EduCheck AI Pro", page_icon="🎓", layout="wide")
 
+# עיצוב ה-Glassmorphism והצבעים
 st.markdown("""
 <style>
     .stApp { background-color: #0f172a; color: white; direction: rtl; text-align: right; }
     .white-bold { color: #ffffff !important; font-weight: 900 !important; text-shadow: 2px 2px 4px #000000; }
     .glass-card { background: rgba(30, 41, 59, 0.7); border: 1px solid #38bdf8; border-radius: 15px; padding: 25px; margin-bottom: 20px; }
     .stButton>button { background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); color: white !important; font-weight: 700; border-radius: 10px; border: none; width: 100%; }
-    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
-    .stTabs [data-baseweb="tab"] { color: white !important; font-weight: bold; }
-    label, p, .stMarkdown { color: white !important; }
+    .logout-btn>button { background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%) !important; }
+    label, p, .stMarkdown { color: white !important; font-weight: 600; }
+    .stTabs [data-baseweb="tab"] { color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -119,11 +92,19 @@ def init_gemini():
     if "GEMINI_API_KEY" not in st.secrets:
         st.error("🔑 מפתח API חסר ב-Secrets!")
         return None
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    return genai.GenerativeModel('gemini-1.5-flash')
+    try:
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        return genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        st.error(f"שגיאה בחיבור ל-Gemini: {e}")
+        return None
+
+# אתחול Session State למחוון
+if 'rubric' not in st.session_state:
+    st.session_state.rubric = "מחוון ברירת מחדל: בדוק דיוק היסטורי/הלכתי ודקדוק."
 
 # ==========================================
-# 5. ממשק המשתמש (Tabs)
+# 4. ממשק המשתמש (Tabs)
 # ==========================================
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
 
@@ -142,25 +123,28 @@ with tab1:
                 with st.spinner("מייצר מחוון..."):
                     res = model_ai.generate_content(f"צור מחוון תשובות למבחן ב{subject}")
                     st.session_state.rubric = res.text
-        if 'rubric' not in st.session_state: st.session_state.rubric = ""
+        
         st.session_state.rubric = st.text_area("מחוון הבדיקה:", value=st.session_state.rubric, height=200)
     
     with col2:
         file = st.file_uploader("העלה צילום מבחן:", type=['jpg', 'jpeg', 'png'])
-        if st.button("🚀 בדוק מבחן") and file and student_name and st.session_state.rubric:
-            with st.spinner("מזהה כתב יד ומנתח..."):
+        if st.button("🚀 בדוק מבחן") and file and student_name:
+            with st.spinner("מזהה כתב יד ומנתח ב-AI..."):
                 try:
                     img = Image.open(file)
-                    # 1. OCR
+                    
+                    # שלב 1: OCR משופר עם עיבוד תמונה
                     detected_text = perform_ocr(img)
                     
-                    # 2. Gemini Analysis with detailed prompt
+                    # שלב 2: Gemini - פרומפט מובנה (שיפור 3)
                     model_ai = init_gemini()
                     prompt = f"""
-                    תסתכל על התמונה + על הטקסט שזיהיתי ב-OCR: "{detected_text}"
+                    תסתכל על התמונה המצורפת ועל הטקסט שחולץ מה-OCR:
+                    "{detected_text}"
+                    
                     השתמש במחוון הבא כבסיס לבדיקה: {st.session_state.rubric}
                     
-                    תן ציון מ-1 עד 100 עבור התלמיד {student_name} במקצוע {subject}.
+                    תן ציון מ-1 עד 100 עבור התלמיד {student_name}.
                     תכתוב בעברית בצורה מסודרת בדיוק כך:
                     ציון: [כאן הציון]
                     מה היה טוב: [פירוט]
@@ -169,14 +153,14 @@ with tab1:
                     """
                     response = model_ai.generate_content([prompt, img])
                     
-                    # 3. Save to DB
+                    # שלב 3: שמירה לבסיס הנתונים
                     save_to_db(student_name, subject, response.text)
                     
                     st.success("הבדיקה הושלמה ונשמרה!")
                     st.markdown("### 📝 תוצאה:")
                     st.write(response.text)
                 except Exception as e:
-                    st.error(f"שגיאה: {e}")
+                    st.error(f"שגיאה במהלך הבדיקה: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab2:
@@ -185,16 +169,22 @@ with tab2:
     if not db_data.empty:
         st.dataframe(db_data, use_container_width=True)
         csv = db_data.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 הורד אקסל (CSV)", data=csv, file_name="exams_archive.csv")
+        st.download_button("📥 הורד אקסל מלא (CSV)", data=csv, file_name="exams_archive.csv")
     else:
         st.info("הארכיון ריק.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab3:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    st.subheader("ניהול מערכת")
     if st.button("🔴 מחיקת כל הארכיון"):
-        conn = sqlite3.connect('results.db'); conn.execute("DELETE FROM exams"); conn.commit(); conn.close()
-        st.warning("הארכיון נמחק!")
+        conn = sqlite3.connect('results.db', check_same_thread=False)
+        conn.execute("DELETE FROM exams")
+        conn.commit()
+        conn.close()
+        st.warning("הארכיון נמחק בהצלחה.")
         st.rerun()
-    st.write("גרסת מערכת: 3.0.0 (Full Integration)")
+    st.markdown("---")
+    st.write("**מצב מערכת:** אופטימלי (ללא PyTorch)")
+    st.write(f"**תאריך:** {datetime.now().strftime('%d/%m/%Y')}")
     st.markdown("</div>", unsafe_allow_html=True)
