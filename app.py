@@ -11,73 +11,67 @@ import io
 import os
 
 # ==========================================
-# 1. בסיס נתונים (SQLite) - יציב וחסכוני
+# 1. בסיס נתונים (SQLite)
 # ==========================================
 def init_db():
-    try:
-        conn = sqlite3.connect('results.db', check_same_thread=False)
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS exams 
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                      date TEXT, student_name TEXT, subject TEXT, result TEXT)''')
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        st.error(f"שגיאה בבסיס הנתונים: {e}")
+    conn = sqlite3.connect('results.db', check_same_thread=False)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS exams 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  date TEXT, student_name TEXT, subject TEXT, result TEXT)''')
+    conn.commit()
+    conn.close()
 
 def save_to_db(name, subject, result):
-    try:
-        conn = sqlite3.connect('results.db', check_same_thread=False)
-        c = conn.cursor()
-        date_now = datetime.now().strftime("%d/%m/%Y %H:%M")
-        c.execute("INSERT INTO exams (date, student_name, subject, result) VALUES (?, ?, ?, ?)",
-                  (date_now, name, subject, result))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        st.error(f"שגיאה בשמירה: {e}")
+    conn = sqlite3.connect('results.db', check_same_thread=False)
+    c = conn.cursor()
+    date_now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    c.execute("INSERT INTO exams (date, student_name, subject, result) VALUES (?, ?, ?, ?)",
+              (date_now, name, subject, result))
+    conn.commit()
+    conn.close()
 
 def load_from_db():
-    try:
-        conn = sqlite3.connect('results.db', check_same_thread=False)
-        df = pd.read_sql_query("SELECT date, student_name, subject, result FROM exams", conn)
-        conn.close()
-        return df
-    except:
-        return pd.DataFrame()
+    conn = sqlite3.connect('results.db', check_same_thread=False)
+    df = pd.read_sql_query("SELECT date, student_name, subject, result FROM exams", conn)
+    conn.close()
+    return df
 
 init_db()
 
 # ==========================================
-# 2. EasyOCR - שיפור טעינה ועיבוד (Memory Optimized)
+# 2. החזרת ה-OCR עם תיקון שגיאת השפה
 # ==========================================
-@st.cache_resource(show_spinner="טוען מודל OCR עברי... (בפעם הראשונה זה לוקח 1-2 דקות)")
+@st.cache_resource(show_spinner="טוען מודלים של זיהוי כתב יד (עברית)...")
 def load_ocr():
+    # ניסיון טעינה עם קוד 'he', ואם נכשל - ניסיון עם 'heb'
     try:
-        # gpu=False הכרחי ל-Streamlit Cloud כדי למנוע MemoryError
         return easyocr.Reader(['he', 'en'], gpu=False, download_enabled=True)
-    except Exception as e:
-        st.warning(f"המערכת תעבוד ללא OCR (רק Gemini): {e}")
-        return None
+    except:
+        try:
+            return easyocr.Reader(['heb', 'en'], gpu=False, download_enabled=True)
+        except Exception as e:
+            st.error(f"שגיאה קריטית בטעינת ה-OCR: {e}")
+            return None
 
 reader = load_ocr()
 
 def perform_ocr(image):
     if reader is None:
-        return "OCR Not Available"
+        return "שירות ה-OCR נכשל בטעינה."
     
-    # עיבוד מקדים לשיפור הדיוק
+    # עיבוד תמונה מקדים לשיפור הזיהוי
     img_array = np.array(image.convert('RGB'))
     gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-    # שיפור קונטרסט
-    enhanced = cv2.convertScaleAbs(gray, alpha=1.2, beta=10)
+    # הגברת ניגודיות (Contrast) - קריטי לכתב יד
+    enhanced = cv2.convertScaleAbs(gray, alpha=1.5, beta=0)
     
-    # שמירה על סדר שורות ופסקאות
+    # הפעלת הזיהוי עם שמירה על מבנה שורות
     results = reader.readtext(enhanced, detail=0, paragraph=True)
     return "\n".join(results)
 
 # ==========================================
-# 3. עיצוב (CSS) וחיבור AI
+# 3. עיצוב וחיבור AI
 # ==========================================
 st.set_page_config(page_title="EduCheck AI Pro", page_icon="🎓", layout="wide")
 
@@ -98,15 +92,15 @@ def init_gemini():
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     return genai.GenerativeModel('gemini-1.5-flash')
 
+if 'rubric' not in st.session_state:
+    st.session_state.rubric = ""
+
 # ==========================================
-# 4. ממשק המשתמש
+# 4. ממשק משתמש
 # ==========================================
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן", "📊 ארכיון (נשמר ב-DB)", "⚙️ הגדרות"])
-
-if 'rubric' not in st.session_state:
-    st.session_state.rubric = ""
+tab1, tab2, tab3 = st.tabs(["📄 בדיקה ומחוון", "📊 ארכיון שמור", "⚙️ הגדרות"])
 
 with tab1:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
@@ -126,17 +120,21 @@ with tab1:
     with col2:
         file = st.file_uploader("העלה צילום מבחן:", type=['jpg', 'jpeg', 'png'])
         if st.button("🚀 בדוק מבחן") and file and student_name:
-            with st.spinner("מזהה כתב יד ומנתח..."):
+            with st.spinner("מבצע OCR ומנתח ב-AI..."):
                 try:
                     img = Image.open(file)
-                    # שלב 1: OCR עם עיבוד תמונה
+                    
+                    # ביצוע ה-OCR שביקשת להחזיר
                     detected_text = perform_ocr(img)
                     
-                    # שלב 2: Gemini
+                    # שליחה ל-Gemini (תמונה + טקסט OCR)
                     model_ai = init_gemini()
                     prompt = f"""
-                    תסתכל על התמונה + על הטקסט שזיהיתי ב-OCR: "{detected_text}"
-                    השתמש במחוון הבא: {st.session_state.rubric}
+                    תסתכל על התמונה המצורפת ועל הטקסט שחולץ ב-OCR:
+                    "{detected_text}"
+                    
+                    השתמש במחוון: {st.session_state.rubric}
+                    
                     תן ציון מ-1 עד 100 לתלמיד {student_name}.
                     ענה בעברית:
                     ציון: [מספר]
@@ -146,28 +144,23 @@ with tab1:
                     """
                     response = model_ai.generate_content([prompt, img])
                     
-                    # שלב 3: שמירה ל-DB
                     save_to_db(student_name, subject, response.text)
-                    st.success("הבדיקה הושלמה ונשמרה!")
-                    st.markdown(response.text)
+                    st.success("הבדיקה הושלמה!")
+                    st.write(response.text)
                 except Exception as e:
                     st.error(f"שגיאה: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab2:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-    data = load_from_db()
-    if not data.empty:
-        st.dataframe(data, use_container_width=True)
-        st.download_button("📥 הורד אקסל (CSV)", data=data.to_csv(index=False).encode('utf-8-sig'), file_name="archive.csv")
-    else:
-        st.info("הארכיון ריק.")
+    db_data = load_from_db()
+    if not db_data.empty:
+        st.dataframe(db_data, use_container_width=True)
+        st.download_button("📥 הורד אקסל (CSV)", data=db_data.to_csv(index=False).encode('utf-8-sig'), file_name="archive.csv")
+    else: st.info("הארכיון ריק.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab3:
-    if st.button("🔴 מחיקת כל הארכיון"):
-        conn = sqlite3.connect('results.db', check_same_thread=False)
-        conn.execute("DELETE FROM exams")
-        conn.commit()
-        conn.close()
+    if st.button("🔴 מחיקת ארכיון"):
+        conn = sqlite3.connect('results.db'); conn.execute("DELETE FROM exams"); conn.commit(); conn.close()
         st.rerun()
