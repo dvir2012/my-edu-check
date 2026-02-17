@@ -1,6 +1,7 @@
-streamlit
+streamlit>=1.30
 google-generativeai
 pillow
 opencv-python-headless
 easyocr
 pandas
+numpy
