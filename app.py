@@ -1,14 +1,10 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
-import cv2
-import numpy as np
 import pandas as pd
 from datetime import datetime
 import sqlite3
-import easyocr
 import io
-import os
 
 # ==========================================
 # 1. בסיס נתונים (SQLite)
@@ -40,38 +36,7 @@ def load_from_db():
 init_db()
 
 # ==========================================
-# 2. החזרת ה-OCR עם תיקון שגיאת השפה
-# ==========================================
-@st.cache_resource(show_spinner="טוען מודלים של זיהוי כתב יד (עברית)...")
-def load_ocr():
-    # ניסיון טעינה עם קוד 'he', ואם נכשל - ניסיון עם 'heb'
-    try:
-        return easyocr.Reader(['he', 'en'], gpu=False, download_enabled=True)
-    except:
-        try:
-            return easyocr.Reader(['heb', 'en'], gpu=False, download_enabled=True)
-        except Exception as e:
-            st.error(f"שגיאה קריטית בטעינת ה-OCR: {e}")
-            return None
-
-reader = load_ocr()
-
-def perform_ocr(image):
-    if reader is None:
-        return "שירות ה-OCR נכשל בטעינה."
-    
-    # עיבוד תמונה מקדים לשיפור הזיהוי
-    img_array = np.array(image.convert('RGB'))
-    gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-    # הגברת ניגודיות (Contrast) - קריטי לכתב יד
-    enhanced = cv2.convertScaleAbs(gray, alpha=1.5, beta=0)
-    
-    # הפעלת הזיהוי עם שמירה על מבנה שורות
-    results = reader.readtext(enhanced, detail=0, paragraph=True)
-    return "\n".join(results)
-
-# ==========================================
-# 3. עיצוב וחיבור AI
+# 2. עיצוב וחיבור AI
 # ==========================================
 st.set_page_config(page_title="EduCheck AI Pro", page_icon="🎓", layout="wide")
 
@@ -80,8 +45,9 @@ st.markdown("""
     .stApp { background-color: #0f172a; color: white; direction: rtl; text-align: right; }
     .white-bold { color: #ffffff !important; font-weight: 900 !important; text-shadow: 2px 2px 4px #000000; }
     .glass-card { background: rgba(30, 41, 59, 0.7); border: 1px solid #38bdf8; border-radius: 15px; padding: 25px; margin-bottom: 20px; }
-    .stButton>button { background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); color: white !important; font-weight: 700; border-radius: 10px; border: none; }
+    .stButton>button { background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); color: white !important; font-weight: 700; border-radius: 10px; border: none; width: 100%; }
     label, p, .stMarkdown { color: white !important; font-weight: 600; }
+    .stTabs [data-baseweb="tab"] { color: white !important; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -93,10 +59,10 @@ def init_gemini():
     return genai.GenerativeModel('gemini-1.5-flash')
 
 if 'rubric' not in st.session_state:
-    st.session_state.rubric = ""
+    st.session_state.rubric = "מחוון ברירת מחדל: בדוק דיוק, הבנה, דקדוק והלכה/היסטוריה. תן נקודות חלקיות לכל שאלה."
 
 # ==========================================
-# 4. ממשק משתמש
+# 3. ממשק המשתמש (Tabs)
 # ==========================================
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
 
@@ -120,35 +86,46 @@ with tab1:
     with col2:
         file = st.file_uploader("העלה צילום מבחן:", type=['jpg', 'jpeg', 'png'])
         if st.button("🚀 בדוק מבחן") and file and student_name:
-            with st.spinner("מבצע OCR ומנתח ב-AI..."):
+            with st.spinner("Gemini מנתח את כתב היד..."):
                 try:
                     img = Image.open(file)
-                    
-                    # ביצוע ה-OCR שביקשת להחזיר
-                    detected_text = perform_ocr(img)
-                    
-                    # שליחה ל-Gemini (תמונה + טקסט OCR)
                     model_ai = init_gemini()
+                    
+                    # פרומפט חזק שמחליף את הצורך ב-OCR חיצוני
                     prompt = f"""
-                    תסתכל על התמונה המצורפת ועל הטקסט שחולץ ב-OCR:
-                    "{detected_text}"
+                    משימה: בצע OCR לכתב היד העברי בתמונה ולאחר מכן בדוק את המבחן.
                     
-                    השתמש במחוון: {st.session_state.rubric}
+                    שם התלמיד: {student_name}
+                    מקצוע: {subject}
+                    מחוון בדיקה: {st.session_state.rubric}
                     
-                    תן ציון מ-1 עד 100 לתלמיד {student_name}.
-                    ענה בעברית:
-                    ציון: [מספר]
-                    מה היה טוב: [פירוט]
-                    מה היה לא טוב: [פירוט]
-                    הסבר לכל שאלה: [פירוט]
+                    הוראות:
+                    1. זהה את הטקסט הכתוב בעברית בתמונה (גם אם הוא נמהר או צפוף).
+                    2. השווה את התשובות למחוון.
+                    3. ענה בעברית בפורמט הבא בלבד:
+                    
+                    ציון: [מספר בין 1 ל-100]
+                    
+                    מה היה טוב:
+                    [פירוט]
+                    
+                    מה היה לא טוב:
+                    [פירוט]
+                    
+                    הסבר לכל שאלה:
+                    [פירוט של מה התלמיד כתב לעומת מה שהיה צריך לכתוב]
                     """
+                    
                     response = model_ai.generate_content([prompt, img])
                     
+                    # שמירה לארכיון
                     save_to_db(student_name, subject, response.text)
+                    
                     st.success("הבדיקה הושלמה!")
+                    st.markdown("---")
                     st.write(response.text)
                 except Exception as e:
-                    st.error(f"שגיאה: {e}")
+                    st.error(f"שגיאה בניתוח המבחן: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab2:
@@ -156,7 +133,8 @@ with tab2:
     db_data = load_from_db()
     if not db_data.empty:
         st.dataframe(db_data, use_container_width=True)
-        st.download_button("📥 הורד אקסל (CSV)", data=db_data.to_csv(index=False).encode('utf-8-sig'), file_name="archive.csv")
+        csv = db_data.to_csv(index=False).encode('utf-8-sig')
+        st.download_button("📥 הורד אקסל (CSV)", data=csv, file_name="archive.csv")
     else: st.info("הארכיון ריק.")
     st.markdown("</div>", unsafe_allow_html=True)
 
