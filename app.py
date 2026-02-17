@@ -12,38 +12,37 @@ from datetime import datetime
 import os
 
 # ==========================================
-# 1. הגדרות מיתוג ושם האפליקציה (זה מה שחיפשת!)
+# הגדרת שם האפליקציה למיתוג והורדה
 # ==========================================
 st.set_page_config(
-    page_title="EduCheck AI",  # השם שיופיע בלשונית ובשם הקובץ המותקן
-    page_icon="🎓",             # האייקון שיופיע על שולחן העבודה
-    layout="wide",
-    initial_sidebar_state="collapsed"
+    page_title="EduCheck AI", 
+    page_icon="🎓", 
+    layout="wide"
 )
 
 # ==========================================
 # 2. חיבור ל-AI של גוגל (Gemini)
 # ==========================================
+# פונקציה לבדיקת מפתח ה-API ומניעת שגיאות 404
 def init_gemini():
-    if "GEMINI_API_KEY" in st.secrets:
+    if "GEMINI_API_KEY" not in st.secrets:
+        st.error("🔑 מפתח API חסר! נא להגדיר GEMINI_API_KEY ב-Secrets של Streamlit.")
+        return None
+    try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        # מחפש את המודל הכי מעודכן שזמין עבורכם
         return "gemini-1.5-flash"
-    else:
-        # ניסיון למשוך משתנה סביבה אם Secrets לא מוגדר (לוקאלי)
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if api_key:
-            genai.configure(api_key=api_key)
-            return "gemini-1.5-flash"
-        st.error("🔑 מפתח API חסר! נא להגדיר GEMINI_API_KEY ב-Secrets.")
+    except Exception as e:
+        st.error(f"שגיאה בחיבור ל-AI: {e}")
         return None
 
 MODEL_NAME = init_gemini()
 
 # ==========================================
-# 3. מודל ה-PyTorch (FCN32s)
+# 3. מודל ה-PyTorch שביקשת (FCN32s)
 # ==========================================
 class FCN32s(nn.Module):
-    def __init__(self, n_class=2):
+    def __init__(self, n_class=21): # שיניתי ל-21 כברירת מחדל של VGG
         super(FCN32s, self).__init__()
         vgg = models.vgg16(weights='DEFAULT')
         self.features = vgg.features
@@ -64,102 +63,89 @@ class FCN32s(nn.Module):
         x = self.upscore(x)
         return x
 
+# פונקציה לטעינת המודל (אם יש קובץ משקולות .pth)
 @st.cache_resource
 def load_pytorch_model():
-    model = FCN32s(n_class=2)
+    model = FCN32s(n_class=2) # מותאם לזיהוי כתב יד (שחור/לבן)
+    # אם יש לכם קובץ מאומן, כאן טוענים אותו: 
+    # model.load_state_dict(torch.load('model_weights.pth', map_location='cpu'))
     model.eval()
     return model
 
 pytorch_model = load_pytorch_model()
 
 # ==========================================
-# 4. עיצוב הממשק (CSS משופר)
+# 4. עיצוב הממשק (CSS) - לבן על כהה
 # ==========================================
 st.markdown("""
 <style>
-    /* הגדרות רקע וטקסט כללי */
     .stApp { background-color: #0f172a; color: white; direction: rtl; text-align: right; }
-    
-    /* כותרות לבנות ומודגשות */
     .white-bold { color: #ffffff !important; font-weight: 900 !important; text-shadow: 2px 2px 4px #000000; }
-    
-    /* כרטיסיות זכוכית */
     .glass-card { background: rgba(30, 41, 59, 0.7); border: 1px solid #38bdf8; border-radius: 15px; padding: 25px; margin-bottom: 20px; }
-    
-    /* עיצוב כפתורים כחול בולט */
-    .stButton>button { 
-        background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); 
-        color: white !important; 
-        font-weight: 800; 
-        border-radius: 10px; 
-        border: none;
-        padding: 10px 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-    
-    /* התאמת צבעי הטקסט בתיבות קלט */
-    label, p, .stMarkdown { color: #ffffff !important; font-weight: 600; }
+    .stButton>button { background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); color: white !important; font-weight: 700; border-radius: 10px; border: none; }
 </style>
 """, unsafe_allow_html=True)
 
-# ניהול נתונים
+# ניהול נתונים ב-Pandas (שמירה בזיכרון האפליקציה)
 if 'db' not in st.session_state:
     st.session_state.db = []
 
-# --- כותרת ראשית של המותג ---
+# --- כותרת ---
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI 🎓</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-size: 1.2rem;'>המערכת שלך לבדיקת מבחנים וסריקת אלפי מסמכים</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>מערכת חכמה לבדיקת מבחנים וסריקת כתב יד</p>", unsafe_allow_html=True)
 
 # --- תפריט ראשי ---
-tab1, tab2, tab3 = st.tabs(["📄 בדיקה יחידה", "📁 סריקת ZIP המונית", "📊 יומן ציונים"])
+tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן בודד", "📁 סריקה המונית (ZIP)", "📊 יומן ציונים (Pandas)"])
 
-# כרטיסייה 1: בדיקת מבחן בודד
+# כרטיסייה 1: בדיקת מבחן
 with tab1:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("<p class='white-bold'>פרטי המבחן</p>", unsafe_allow_html=True)
-        student_name = st.text_input("שם התלמיד:", placeholder="למשל: ישראל ישראלי")
+        student_name = st.text_input("שם התלמיד:")
         subject = st.text_input("מקצוע:", "תורה")
-        rubric = st.text_area("מחוון תשובות (התשובות הנכונות):", placeholder="הכנס כאן את הפתרון הנכון...")
+        rubric = st.text_area("מחוון תשובות (מה התשובות הנכונות?):")
         
     with col2:
-        st.markdown("<p class='white-bold'>העלאת מסמך</p>", unsafe_allow_html=True)
-        uploaded_file = st.file_uploader("בחר תמונה:", type=['jpg', 'jpeg', 'png'])
-        if st.button("🚀 בדוק עכשיו") and uploaded_file and student_name:
-            with st.spinner("מנתח כתב יד..."):
+        uploaded_file = st.file_uploader("העלה צילום של המבחן:", type=['jpg', 'jpeg', 'png'])
+        if st.button("🚀 התחל בדיקה") and uploaded_file and student_name:
+            with st.spinner("ה-AI מנתח את כתב היד..."):
                 img = Image.open(uploaded_file)
+                # שימוש ב-Gemini
                 model = genai.GenerativeModel(MODEL_NAME)
                 prompt = f"פענח את המבחן של {student_name} במקצוע {subject}. השווה למחוון: {rubric}. תן ציון ופרט טעויות."
                 response = model.generate_content([prompt, img])
                 
-                st.session_state.db.append({
+                # שמירה ל-Pandas
+                res_data = {
                     "תאריך": datetime.now().strftime("%d/%m/%Y %H:%M"),
                     "תלמיד": student_name,
                     "מקצוע": subject,
                     "תוצאה": response.text
-                })
-                st.success("הבדיקה הושלמה בהצלחה!")
-                st.markdown(f"<div style='background:#1e293b; padding:15px; border-radius:10px;'>{response.text}</div>", unsafe_allow_html=True)
+                }
+                st.session_state.db.append(res_data)
+                st.success("הבדיקה הושלמה!")
+                st.markdown(f"**תוצאה:** \n\n {response.text}")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# כרטיסייה 2: סריקה המונית
+# כרטיסייה 2: סריקה המונית (אלפי תמונות)
 with tab2:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-    st.info("💡 וודא שביצעת unzip images.zip ב-Cloud Shell לפני הלחיצה.")
+    st.info("כדי להשתמש בזה, העלה קובץ images.zip ב-Cloud Shell ועשה unzip.")
     
-    if st.button("🔍 סרוק את כל תיקיית ה-ZIP"):
+    if st.button("🔍 סרוק את כל תיקיית התמונות"):
         if os.path.exists('images'):
-            image_files = [f for f in os.listdir('images') if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-            st.write(f"נמצאו {len(image_files)} תמונות.")
+            image_files = [f for f in os.listdir('images') if f.endswith(('.png', '.jpg', '.jpeg'))]
+            st.write(f"נמצאו {len(image_files)} תמונות לסריקה.")
             
             prog_bar = st.progress(0)
             for i, filename in enumerate(image_files):
                 img_path = os.path.join('images', filename)
                 img = Image.open(img_path)
+                
                 model = genai.GenerativeModel(MODEL_NAME)
-                res = model.generate_content(["תמצת את המבחן ותן ציון", img])
+                res = model.generate_content(["תמצת את הכתוב במבחן זה ותן ציון הערכתי", img])
                 
                 st.session_state.db.append({
                     "תאריך": "סריקה המונית",
@@ -170,15 +156,18 @@ with tab2:
                 prog_bar.progress((i + 1) / len(image_files))
             st.success("סריקת כל התיקייה הסתיימה!")
         else:
-            st.error("תיקיית 'images' לא נמצאה.")
+            st.error("לא נמצאה תיקייה בשם 'images'. וודא שהעלת ZIP וביצעת חילוץ.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# כרטיסייה 3: יומן ציונים (Pandas)
+# כרטיסייה 3: יומן ציונים
 with tab3:
     if st.session_state.db:
         df = pd.DataFrame(st.session_state.db)
+        st.markdown("<p class='white-bold'>טבלת הישגים:</p>", unsafe_allow_html=True)
         st.dataframe(df, use_container_width=True)
+        
+        # כפתור הורדה לאקסל
         csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 ייצא לאקסל (CSV)", data=csv, file_name="educheck_results.csv", mime="text/csv")
+        st.download_button("📥 הורד דוח לאקסל (CSV)", data=csv, file_name="educheck_results.csv", mime="text/csv")
     else:
-        st.info("אין נתונים להצגה.")
+        st.write("אין עדיין ציונים במערכת.")
