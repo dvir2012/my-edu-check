@@ -7,7 +7,7 @@ import sqlite3
 import io
 
 # ==========================================
-# 1. בסיס נתונים (SQLite) - ניהול ארכיון
+# 1. בסיס נתונים (SQLite)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('results.db', check_same_thread=False)
@@ -34,18 +34,20 @@ def load_from_db():
     return df
 
 # ==========================================
-# 2. אתחול AI (פתרון סופי לשגיאת 404)
+# 2. אתחול ה-AI (הגרסה החסינה ל-404)
 # ==========================================
 def init_gemini():
     if "GEMINI_API_KEY" not in st.secrets:
-        st.error("🔑 מפתח API חסר ב-Secrets! אנא הגדר אותו בלוח הבקרה.")
+        st.error("🔑 מפתח API חסר ב-Secrets!")
         return None
     
     try:
-        # הגדרה יציבה לגרסה v1
+        # הגדרת המפתח
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # שימוש במודל היחיד שתומך בראייה וטקסט בגרסה היציבה
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # יצירת המודל עם השם היציב ביותר
+        # השימוש ב-gemini-1.5-flash מבטיח תמיכה ב-OCR ובעברית
+        model = genai.GenerativeModel(model_name='gemini-1.5-flash')
         return model
     except Exception as e:
         st.error(f"שגיאה בחיבור ל-Gemini: {e}")
@@ -68,17 +70,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# אתחול ה-DB בטעינה
 init_db()
 
 # ==========================================
-# 4. הממשק המרכזי (Tabs)
+# 4. הממשק המרכזי
 # ==========================================
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן בכתב יד", "📊 ארכיון שמור", "⚙️ הגדרות"])
+tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן בכתב יד", "📊 ארכיון", "⚙️ הגדרות"])
 
-# ניהול המחוון ב-Session State
 if 'rubric' not in st.session_state:
     st.session_state.rubric = "בדוק את התשובות על פי הבנה עמוקה, דיוק בפרטים ושימוש במושגים נכונים."
 
@@ -87,83 +87,76 @@ with tab1:
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("🛠️ הגדרות המבחן")
         student_name = st.text_input("שם התלמיד:")
         subject = st.text_input("מקצוע:", "תורה")
         
-        if st.button("✨ צור מחוון תשובות אוטומטי"):
+        if st.button("✨ צור מחוון אוטומטי"):
             model = init_gemini()
             if model:
-                with st.spinner("ה-AI בונה מחוון..."):
+                with st.spinner("מייצר מחוון..."):
                     try:
                         res = model.generate_content(f"צור מחוון תשובות מפורט למבחן ב{subject} בעברית.")
                         st.session_state.rubric = res.text
                     except Exception as e:
                         st.error(f"שגיאה ביצירת מחוון: {e}")
 
-        st.session_state.rubric = st.text_area("מחוון הבדיקה (ניתן לערוך):", value=st.session_state.rubric, height=250)
+        st.session_state.rubric = st.text_area("מחוון הבדיקה (תשובות נכונות):", value=st.session_state.rubric, height=250)
     
     with col2:
-        st.subheader("📷 העלאת המבחן")
-        file = st.file_uploader("העלה צילום ברור של המבחן (כתב יד):", type=['jpg', 'jpeg', 'png'])
+        file = st.file_uploader("העלה צילום מבחן (כתב יד):", type=['jpg', 'jpeg', 'png'])
         
-        if st.button("🚀 בדוק מבחן וחשב ציון"):
+        if st.button("🚀 בדוק מבחן"):
             if not file or not student_name:
-                st.warning("נא להזין שם תלמיד ולהעלות קובץ תמונה.")
+                st.warning("נא להזין שם תלמיד ולהעלות קובץ.")
             else:
-                with st.spinner("מזהה כתב יד עברי ומנתח..."):
+                with st.spinner("מפענח כתב יד עברי ומנתח תוצאות..."):
                     try:
                         img = Image.open(file)
                         model = init_gemini()
                         
                         if model:
+                            # פרומפט ממוקד לפענוח כתב יד עברי כפי שביקשת
                             prompt = f"""
-                            אתה מורה מומחה. עליך לפענח כתב יד עברי ולבדוק את המבחן של {student_name} בנושא {subject}.
+                            אתה מורה מומחה לפענוח כתב יד עברי.
                             
-                            מחוון הבדיקה שלך: {st.session_state.rubric}
+                            משימה:
+                            1. פענח את כתב היד בתמונה עבור התלמיד {student_name} בנושא {subject}.
+                            2. השווה את התשובות למחוון הבא: {st.session_state.rubric}
                             
-                            שלבי עבודה:
-                            1. בצע OCR מלא לכתב היד בתמונה (שים לב לאותיות דומות כמו ד/ר, ב/כ).
-                            2. השווה את התשובות למחוון.
-                            3. כתוב סיכום בעברית בפורמט הבא:
-                            
-                            ## סיכום בדיקה: {student_name}
+                            ענה בעברית בפורמט הבא:
+                            ## תוצאות עבור {student_name}
                             **ציון סופי:** [מספר]
-                            **נקודות חוזקה:** [פירוט]
-                            **טעויות לתיקון:** [פירוט]
-                            **הטקסט שזוהה בכתב יד:** [כאן תכתוב מה הצלחת לקרוא מהמבחן]
+                            **מה היה טוב:** [פירוט]
+                            **נקודות לשיפור:** [פירוט]
+                            **הטקסט שפענחת מהתמונה:** [הצג כאן את כל מה שהצלחת לקרוא]
                             """
                             
                             response = model.generate_content([prompt, img])
                             save_to_db(student_name, subject, response.text)
                             
-                            st.success("הבדיקה הושלמה ונשמרה בארכיון!")
+                            st.success("הניתוח הושלם!")
                             st.markdown("---")
                             st.markdown(response.text)
                     except Exception as e:
-                        st.error(f"שגיאה בניתוח: {e}")
+                        st.error(f"שגיאה בניתוח המבחן: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab2:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-    st.subheader("📜 היסטוריית בדיקות")
     df = load_from_db()
     if not df.empty:
         st.dataframe(df, use_container_width=True)
         csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 הורד ארכיון לאקסל (CSV)", data=csv, file_name="history.csv")
+        st.download_button("📥 הורד אקסל (CSV)", data=csv, file_name="history.csv")
     else:
-        st.info("הארכיון ריק כרגע.")
+        st.info("הארכיון ריק.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab3:
-    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-    st.subheader("⚙️ ניהול מערכת")
-    if st.button("🔴 מחיקת כל הנתונים בארכיון"):
+    if st.button("🔴 מחיקת ארכיון"):
         conn = sqlite3.connect('results.db')
         conn.execute("DELETE FROM exams")
         conn.commit()
         conn.close()
-        st.success("הנתונים נמחקו.")
+        st.success("הארכיון נמחק.")
         st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
