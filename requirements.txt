@@ -1,9 +1,6 @@
 streamlit
 google-generativeai
 pillow
-torch
-torchvision
-numpy
 opencv-python-headless
-pandas
 easyocr
+pandas
