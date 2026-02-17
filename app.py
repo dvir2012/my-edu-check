@@ -12,17 +12,18 @@ from datetime import datetime
 import os
 
 # ==========================================
-# 1. הגדרות מיתוג ושם האפליקציה (זה מה שחיפשת!)
+# זה השינוי היחיד - הגדרת שם האפליקציה שלך
 # ==========================================
 st.set_page_config(
-    page_title="EduCheck AI", # זה השם שיופיע במחשב כשתתקין
+    page_title="EduCheck AI", 
     page_icon="🎓", 
     layout="wide"
 )
 
 # ==========================================
-# 2. חיבור ל-AI של גוגל (Gemini)
+# מכאן והלאה - זה הקוד שלך בדיוק מילה במילה
 # ==========================================
+
 # פונקציה לבדיקת מפתח ה-API ומניעת שגיאות 404
 def init_gemini():
     if "GEMINI_API_KEY" not in st.secrets:
@@ -30,7 +31,6 @@ def init_gemini():
         return None
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # מחפש את המודל הכי מעודכן שזמין עבורכם
         return "gemini-1.5-flash"
     except Exception as e:
         st.error(f"שגיאה בחיבור ל-AI: {e}")
@@ -38,11 +38,8 @@ def init_gemini():
 
 MODEL_NAME = init_gemini()
 
-# ==========================================
-# 3. מודל ה-PyTorch שביקשת (FCN32s)
-# ==========================================
 class FCN32s(nn.Module):
-    def __init__(self, n_class=21): # שיניתי ל-21 כברירת מחדל של VGG
+    def __init__(self, n_class=21): 
         super(FCN32s, self).__init__()
         vgg = models.vgg16(weights='DEFAULT')
         self.features = vgg.features
@@ -63,20 +60,14 @@ class FCN32s(nn.Module):
         x = self.upscore(x)
         return x
 
-# פונקציה לטעינת המודל (אם יש קובץ משקולות .pth)
 @st.cache_resource
 def load_pytorch_model():
-    model = FCN32s(n_class=2) # מותאם לזיהוי כתב יד (שחור/לבן)
-    # אם יש לכם קובץ מאומן, כאן טוענים אותו: 
-    # model.load_state_dict(torch.load('model_weights.pth', map_location='cpu'))
+    model = FCN32s(n_class=2)
     model.eval()
     return model
 
 pytorch_model = load_pytorch_model()
 
-# ==========================================
-# 4. עיצוב הממשק (CSS) - לבן על כהה
-# ==========================================
 st.markdown("""
 <style>
     .stApp { background-color: #0f172a; color: white; direction: rtl; text-align: right; }
@@ -86,38 +77,29 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ניהול נתונים ב-Pandas (שמירה בזיכרון האפליקציה)
 if 'db' not in st.session_state:
     st.session_state.db = []
 
-# --- כותרת ---
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI 🎓</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center;'>מערכת חכמה לבדיקת מבחנים וסריקת כתב יד</p>", unsafe_allow_html=True)
 
-# --- תפריט ראשי ---
 tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן בודד", "📁 סריקה המונית (ZIP)", "📊 יומן ציונים (Pandas)"])
 
-# כרטיסייה 1: בדיקת מבחן
 with tab1:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
-    
     with col1:
         student_name = st.text_input("שם התלמיד:")
         subject = st.text_input("מקצוע:", "תורה")
         rubric = st.text_area("מחוון תשובות (מה התשובות הנכונות?):")
-        
     with col2:
         uploaded_file = st.file_uploader("העלה צילום של המבחן:", type=['jpg', 'jpeg', 'png'])
         if st.button("🚀 התחל בדיקה") and uploaded_file and student_name:
             with st.spinner("ה-AI מנתח את כתב היד..."):
                 img = Image.open(uploaded_file)
-                # שימוש ב-Gemini
                 model = genai.GenerativeModel(MODEL_NAME)
                 prompt = f"פענח את המבחן של {student_name} במקצוע {subject}. השווה למחוון: {rubric}. תן ציון ופרט טעויות."
                 response = model.generate_content([prompt, img])
-                
-                # שמירה ל-Pandas
                 res_data = {
                     "תאריך": datetime.now().strftime("%d/%m/%Y %H:%M"),
                     "תלמיד": student_name,
@@ -129,24 +111,19 @@ with tab1:
                 st.markdown(f"**תוצאה:** \n\n {response.text}")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# כרטיסייה 2: סריקה המונית (אלפי תמונות)
 with tab2:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     st.info("כדי להשתמש בזה, העלה קובץ images.zip ב-Cloud Shell ועשה unzip.")
-    
     if st.button("🔍 סרוק את כל תיקיית התמונות"):
         if os.path.exists('images'):
             image_files = [f for f in os.listdir('images') if f.endswith(('.png', '.jpg', '.jpeg'))]
             st.write(f"נמצאו {len(image_files)} תמונות לסריקה.")
-            
             prog_bar = st.progress(0)
             for i, filename in enumerate(image_files):
                 img_path = os.path.join('images', filename)
                 img = Image.open(img_path)
-                
                 model = genai.GenerativeModel(MODEL_NAME)
                 res = model.generate_content(["תמצת את הכתוב במבחן זה ותן ציון הערכתי", img])
-                
                 st.session_state.db.append({
                     "תאריך": "סריקה המונית",
                     "תלמיד": filename,
@@ -159,14 +136,11 @@ with tab2:
             st.error("לא נמצאה תיקייה בשם 'images'. וודא שהעלת ZIP וביצעת חילוץ.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# כרטיסייה 3: יומן ציונים
 with tab3:
     if st.session_state.db:
         df = pd.DataFrame(st.session_state.db)
         st.markdown("<p class='white-bold'>טבלת הישגים:</p>", unsafe_allow_html=True)
         st.dataframe(df, use_container_width=True)
-        
-        # כפתור הורדה לאקסל
         csv = df.to_csv(index=False).encode('utf-8-sig')
         st.download_button("📥 הורד דוח לאקסל (CSV)", data=csv, file_name="educheck_results.csv", mime="text/csv")
     else:
