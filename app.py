@@ -24,11 +24,13 @@ st.set_page_config(
 # 2. חיבור ל-AI של גוגל (Gemini)
 # ==========================================
 def init_gemini():
+    # בדיקה אם המפתח קיים ב-Secrets
     if "GEMINI_API_KEY" not in st.secrets:
         st.error("🔑 מפתח API חסר! נא להגדיר GEMINI_API_KEY ב-Secrets.")
         return None
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        # החזרה של שם המודל המעודכן ביותר
         return "gemini-1.5-flash"
     except Exception as e:
         st.error(f"שגיאה בחיבור ל-AI: {e}")
@@ -92,7 +94,7 @@ if 'rubric' not in st.session_state:
 # --- כותרת ראשית ---
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI 🎓</h1>", unsafe_allow_html=True)
 
-# --- תפריט ראשי עם עמודת הגדרות חדשה ---
+# --- תפריט ראשי ---
 tab1, tab2, tab3 = st.tabs(["📄 בדיקה ומחוון", "📊 ארכיון תלמידים", "⚙️ הגדרות"])
 
 # כרטיסייה 1: בדיקת מבחן
@@ -112,18 +114,24 @@ with tab1:
         uploaded_file = st.file_uploader("העלה צילום מבחן:", type=['jpg', 'jpeg', 'png'])
         if st.button("🚀 בדוק מבחן") and uploaded_file and student_name:
             with st.spinner("מנתח..."):
-                img = Image.open(uploaded_file)
-                model = genai.GenerativeModel(MODEL_NAME)
-                prompt = f"פענח את המבחן של {student_name} ב{subject} לפי מחוון: {st.session_state.rubric}. תן ציון."
-                response = model.generate_content([prompt, img])
-                st.session_state.db.append({
-                    "תאריך": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                    "תלמיד": student_name,
-                    "מקצוע": subject,
-                    "תוצאה": response.text
-                })
-                st.success("הבדיקה הושלמה!")
-                st.write(response.text)
+                try:
+                    img = Image.open(uploaded_file)
+                    model = genai.GenerativeModel(MODEL_NAME)
+                    prompt = f"פענח את המבחן של {student_name} ב{subject} לפי מחוון: {st.session_state.rubric}. תן ציון והסבר בעברית."
+                    # כאן בוצע התיקון לשימוש במודל ה-Flash היציב
+                    response = model.generate_content([prompt, img])
+                    
+                    st.session_state.db.append({
+                        "תאריך": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                        "תלמיד": student_name,
+                        "מקצוע": subject,
+                        "תוצאה": response.text
+                    })
+                    st.success("הבדיקה הושלמה!")
+                    st.write(response.text)
+                except Exception as e:
+                    st.error(f"שגיאה במהלך הבדיקה: {e}")
+                    
     st.markdown("</div>", unsafe_allow_html=True)
 
 # כרטיסייה 2: ארכיון
@@ -138,7 +146,7 @@ with tab2:
         st.info("הארכיון ריק.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# כרטיסייה 3: הגדרות והתנתקות
+# כרטיסייה 3: הגדרות
 with tab3:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     st.subheader("ניהול חשבון")
@@ -146,13 +154,13 @@ with tab3:
     
     st.markdown("<div class='logout-btn'>", unsafe_allow_html=True)
     if st.button("🔴 התנתק מהמערכת ומחק נתונים זמניים"):
-        # איפוס כל הנתונים בזיכרון
         st.session_state.db = []
         st.session_state.rubric = ""
         st.success("התנתקת בהצלחה. כל הנתונים הזמניים נמחקו.")
-        st.rerun() # מרענן את האפליקציה למצב התחלתי
+        st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown("---")
     st.write("**גרסת אפליקציה:** 2.0.0 Pro")
     st.markdown("</div>", unsafe_allow_html=True)
+    
