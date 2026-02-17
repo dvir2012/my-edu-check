@@ -43,9 +43,28 @@ def init_gemini():
     
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # שימוש בשם מודל סטנדרטי למניעת 404
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        return model
+       # רשימת מודלים לנסות לפי סדר עדיפות
+        # המודל gemini-1.5-flash לא זמין ב-v1beta, אז ננסה מודלים אחרים
+        model_names = [
+            'gemini-1.5-flash-latest',  # גרסה מעודכנת של 1.5-flash
+            'gemini-2.0-flash-exp',     # גרסה ניסיונית של 2.0
+            'gemini-1.5-pro-latest',    # גרסה חזקה יותר
+            'gemini-pro',                # מודל בסיסי
+        ]
+        
+        # נסה כל מודל עד שאחד עובד
+        last_error = None
+        for model_name in model_names:
+            try:
+                model = genai.GenerativeModel(model_name)
+                return model
+            except Exception as e:
+                last_error = e
+                continue
+        
+        # אם אף מודל לא עבד, החזר שגיאה עם פרטים
+        st.error(f"לא הצלחתי למצוא מודל זמין. שגיאה אחרונה: {last_error}")
+        return None
     except Exception as e:
         st.error(f"שגיאה בחיבור ל-Gemini: {e}")
         return None
@@ -103,7 +122,7 @@ with tab1:
     with col2:
         file = st.file_uploader("העלה צילום מבחן (כתב יד):", type=['jpg', 'jpeg', 'png'])
         
-        if st.button("🚀 דביר סעדיה"):
+        if st.button("🚀 בדוק מבחן"):
             if not file or not student_name:
                 st.warning("נא להזין שם תלמיד ולהעלות קובץ.")
             else:
