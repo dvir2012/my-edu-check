@@ -30,8 +30,8 @@ def init_gemini():
         return None
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # החזרה של שם המודל המעודכן ביותר
-        return "gemini-1.5-flash"
+        # תיקון: הוספת models/ לשם המודל כדי למנוע שגיאת 404
+        return "models/gemini-1.5-flash"
     except Exception as e:
         st.error(f"שגיאה בחיבור ל-AI: {e}")
         return None
@@ -116,9 +116,10 @@ with tab1:
             with st.spinner("מנתח..."):
                 try:
                     img = Image.open(uploaded_file)
+                    # שימוש ב-MODEL_NAME המעודכן (עם models/)
                     model = genai.GenerativeModel(MODEL_NAME)
                     prompt = f"פענח את המבחן של {student_name} ב{subject} לפי מחוון: {st.session_state.rubric}. תן ציון והסבר בעברית."
-                    # כאן בוצע התיקון לשימוש במודל ה-Flash היציב
+                    
                     response = model.generate_content([prompt, img])
                     
                     st.session_state.db.append({
