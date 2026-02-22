@@ -42,11 +42,12 @@ def process_with_ai(prompt, image):
     מנסה להריץ את הבקשה על רשימת מודלים לפי סדר עדיפות.
     אם מודל אחד נכשל, עובר למודל הבא.
     """
-   model_names = [
-    'models/gemini-2.5-flash',      # המודל החדש והמהיר ביותר
-    'models/gemini-2.5-pro',        # המודל המתקדם ביותר
-    'models/gemini-2.0-flash',       # גרסה יציבה
-    'models/gemini-2.0-flash-001',  # גרסה ספציפית
+# שימוש בשמות מודלים תקניים שקיימים ב-API נכון להיום
+model_names = [
+    'models/gemini-2.0-flash-exp',  # המודל הכי חדש שזמין כרגע (ניסיוני)
+    'models/gemini-2.0-flash',      # המודל המהיר והיציב
+    'models/gemini-1.5-pro',        # המודל החכם ביותר (לפענוח כתב יד קשה)
+    'models/gemini-1.5-flash'       # מודל גיבוי יציב
 ]
 
     # הערה: השמות 'gemini-2.5-flash' וכו' עוד לא שוחררו רשמית לכל המשתמשים ב-SDK,
