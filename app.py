@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime
 import sqlite3
 import io
+import os
 
 # ==========================================
 # 1. בסיס נתונים (SQLite)
@@ -34,27 +35,24 @@ def load_from_db():
     return df
 
 # ==========================================
-# 2. אתחול ה-AI (הגרסה החסינה ל-404)
+# 2. אתחול ה-AI (הגרסה החסינה ביותר)
 # ==========================================
 def init_gemini():
     if "GEMINI_API_KEY" not in st.secrets:
-        st.error("🔑 מפתח API חסר ב-Secrets!")
+        st.error("🔑 מפתח API חסר ב-Secrets! הגדר אותו ב-Streamlit Cloud.")
         return None
-    
     try:
-        # הגדרת המפתח
-        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        
-        # יצירת המודל עם השם היציב ביותר
-        # השימוש ב-gemini-1.5-flash מבטיח תמיכה ב-OCR ובעברית
-        model = genai.GenerativeModel(model_name='gemini-1.5-flash')
-        return model
+        api_key = st.secrets["GEMINI_API_KEY"]
+        os.environ["GOOGLE_API_KEY"] = api_key
+        genai.configure(api_key=api_key)
+        # שימוש בגרסה הכי יציבה למניעת 404
+        return genai.GenerativeModel('gemini-1.5-flash-latest')
     except Exception as e:
         st.error(f"שגיאה בחיבור ל-Gemini: {e}")
         return None
 
 # ==========================================
-# 3. עיצוב הממשק (CSS)
+# 3. עיצוב הממשק (CSS מתקדם)
 # ==========================================
 st.set_page_config(page_title="EduCheck AI Pro", page_icon="🎓", layout="wide")
 
@@ -77,11 +75,12 @@ init_db()
 # ==========================================
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן בכתב יד", "📊 ארכיון", "⚙️ הגדרות"])
+tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן בכתב יד", "📊 ארכיון תוצאות", "⚙️ הגדרות מערכת"])
 
 if 'rubric' not in st.session_state:
     st.session_state.rubric = "בדוק את התשובות על פי הבנה עמוקה, דיוק בפרטים ושימוש במושגים נכונים."
 
+# --- טאב 1: בדיקת מבחן ---
 with tab1:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
@@ -90,35 +89,33 @@ with tab1:
         student_name = st.text_input("שם התלמיד:")
         subject = st.text_input("מקצוע:", "תורה")
         
-        if st.button("✨ צור מחוון אוטומטי"):
+        if st.button("✨ צור מחוון אוטומטי (AI)"):
             model = init_gemini()
             if model:
-                with st.spinner("מייצר מחוון..."):
+                with st.spinner("מייצר מחוון תשובות..."):
                     try:
-                        res = model.generate_content(f"צור מחוון תשובות מפורט למבחן ב{subject} בעברית.")
+                        res = model.generate_content(f"צור מחוון תשובות מפורט ותקני למבחן ב{subject} בעברית.")
                         st.session_state.rubric = res.text
                     except Exception as e:
-                        st.error(f"שגיאה ביצירת מחוון: {e}")
+                        st.error(f"שגיאה: {e}")
 
         st.session_state.rubric = st.text_area("מחוון הבדיקה (תשובות נכונות):", value=st.session_state.rubric, height=250)
     
     with col2:
         file = st.file_uploader("העלה צילום מבחן (כתב יד):", type=['jpg', 'jpeg', 'png'])
         
-        if st.button("🚀 בדוק מבחן"):
+        if st.button("🚀 התחל בדיקה אוטומטית"):
             if not file or not student_name:
-                st.warning("נא להזין שם תלמיד ולהעלות קובץ.")
+                st.warning("חובה להזין שם תלמיד ולהעלות קובץ תמונה.")
             else:
-                with st.spinner("מפענח כתב יד עברי ומנתח תוצאות..."):
+                with st.spinner("מפענח כתב יד ומנתח תוצאות..."):
                     try:
                         img = Image.open(file)
                         model = init_gemini()
                         
                         if model:
-                            # פרומפט ממוקד לפענוח כתב יד עברי כפי שביקשת
                             prompt = f"""
                             אתה מורה מומחה לפענוח כתב יד עברי.
-                            
                             משימה:
                             1. פענח את כתב היד בתמונה עבור התלמיד {student_name} בנושא {subject}.
                             2. השווה את התשובות למחוון הבא: {st.session_state.rubric}
@@ -128,35 +125,39 @@ with tab1:
                             **ציון סופי:** [מספר]
                             **מה היה טוב:** [פירוט]
                             **נקודות לשיפור:** [פירוט]
-                            **הטקסט שפענחת מהתמונה:** [הצג כאן את כל מה שהצלחת לקרוא]
+                            **הטקסט שפענחת מהתמונה:** [הטקסט המלא]
                             """
-                            
                             response = model.generate_content([prompt, img])
                             save_to_db(student_name, subject, response.text)
-                            
-                            st.success("הניתוח הושלם!")
+                            st.success("הבדיקה הושלמה בהצלחה!")
                             st.markdown("---")
                             st.markdown(response.text)
                     except Exception as e:
                         st.error(f"שגיאה בניתוח המבחן: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
+# --- טאב 2: ארכיון ---
 with tab2:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     df = load_from_db()
     if not df.empty:
         st.dataframe(df, use_container_width=True)
+        # אפשרות הורדה לאקסל
         csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 הורד אקסל (CSV)", data=csv, file_name="history.csv")
+        st.download_button("📥 הורד את כל ההיסטוריה (CSV)", data=csv, file_name="history.csv")
     else:
-        st.info("הארכיון ריק.")
+        st.info("הארכיון ריק כרגע.")
     st.markdown("</div>", unsafe_allow_html=True)
 
+# --- טאב 3: הגדרות ---
 with tab3:
-    if st.button("🔴 מחיקת ארכיון"):
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    st.write("ניהול בסיס הנתונים:")
+    if st.button("🔴 מחיקת כל הארכיון לצמיתות"):
         conn = sqlite3.connect('results.db')
         conn.execute("DELETE FROM exams")
         conn.commit()
         conn.close()
-        st.success("הארכיון נמחק.")
+        st.success("כל הנתונים נמחקו.")
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
