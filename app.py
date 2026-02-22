@@ -35,7 +35,7 @@ def load_from_db():
     return df
 
 # ==========================================
-# 2. אתחול ה-AI (הגרסה החסינה ביותר)
+# 2. אתחול ה-AI (תוקן - ללא -latest)
 # ==========================================
 def init_gemini():
     if "GEMINI_API_KEY" not in st.secrets:
@@ -45,8 +45,8 @@ def init_gemini():
         api_key = st.secrets["GEMINI_API_KEY"]
         os.environ["GOOGLE_API_KEY"] = api_key
         genai.configure(api_key=api_key)
-        # שימוש בגרסה הכי יציבה למניעת 404
-        return genai.GenerativeModel('gemini-1.5-flash-latest')
+        # ✅ תוקן: שם מודל מדויק ללא -latest
+        return genai.GenerativeModel('gemini-1.5-flash')
     except Exception as e:
         st.error(f"שגיאה בחיבור ל-Gemini: {e}")
         return None
@@ -142,7 +142,6 @@ with tab2:
     df = load_from_db()
     if not df.empty:
         st.dataframe(df, use_container_width=True)
-        # אפשרות הורדה לאקסל
         csv = df.to_csv(index=False).encode('utf-8-sig')
         st.download_button("📥 הורד את כל ההיסטוריה (CSV)", data=csv, file_name="history.csv")
     else:
