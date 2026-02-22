@@ -115,7 +115,7 @@ with tab1:
             if not file or not student_name:
                 st.warning("חובה להזין שם תלמיד ולהעלות קובץ תמונה.")
             else:
-                with st.spinner("מנסה לפענח באמצעות רשימת המודלים שסיפקת..."):
+                with st.spinner("המבחן בבדיקה..."):
                     try:
                         img = Image.open(file)
                         prompt = f"""
