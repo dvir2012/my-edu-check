@@ -45,8 +45,8 @@ def init_gemini():
         api_key = st.secrets["GEMINI_API_KEY"]
         os.environ["GOOGLE_API_KEY"] = api_key
         genai.configure(api_key=api_key)
-        # ✅ תוקן: שם מודל מדויק ללא -latest
-        return genai.GenerativeModel('gemini-1.5-flash')
+        # ✅ תוקן: המודל העדכני והיציב ביותר
+        return genai.GenerativeModel('gemini-2.0-flash')
     except Exception as e:
         st.error(f"שגיאה בחיבור ל-Gemini: {e}")
         return None
