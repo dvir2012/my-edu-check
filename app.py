@@ -35,43 +35,39 @@ def load_from_db():
     return df
 
 # ==========================================
-# 2. פונקציית הליבה: ניסיון רב-מודלים (Failover)
+# 2. מנגנון הגיבוי האוטומטי (Failover)
 # ==========================================
 def process_with_ai(prompt, image):
     """
-    מנסה להריץ את הבקשה על רשימת מודלים לפי סדר עדיפות.
-    אם מודל אחד נכשל, עובר למודל הבא.
+    מנסה להריץ את הבקשה על רשימת המודלים שסיפקת לפי סדר.
     """
-# שימוש בשמות מודלים תקניים שקיימים ב-API נכון להיום
-model_names = [
-    'models/gemini-2.0-flash-exp',  # המודל הכי חדש שזמין כרגע (ניסיוני)
-    'models/gemini-2.0-flash',      # המודל המהיר והיציב
-    'models/gemini-1.5-pro',        # המודל החכם ביותר (לפענוח כתב יד קשה)
-    'models/gemini-1.5-flash'       # מודל גיבוי יציב
-]
-
-    # הערה: השמות 'gemini-2.5-flash' וכו' עוד לא שוחררו רשמית לכל המשתמשים ב-SDK,
-    # לכן השתמשתי בשמות המעודכנים ביותר שזמינים כרגע ב-API כדי שהקוד יעבוד לך מיד.
+    model_names = [
+        'models/gemini-2.5-flash',      # המודל החדש והמהיר ביותר
+        'models/gemini-2.5-pro',        # המודל המתקדם ביותר
+        'models/gemini-2.0-flash',      # גרסה יציבה
+        'models/gemini-2.0-flash-001'   # גרסה ספציפית
+    ]
     
     if "GEMINI_API_KEY" not in st.secrets:
-        st.error("🔑 מפתח API חסר ב-Secrets!")
+        st.error("🔑 מפתח API חסר ב-Secrets! הגדר אותו ב-Streamlit Cloud.")
         return None, None
 
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 
     last_error = ""
-    for model_name in model_names:
+    for model_id in model_names:
         try:
-            # ניסיון ליצור את המודל ולהריץ תוכן
-            model = genai.GenerativeModel(model_name)
+            # הוספת models/ לשם המודל אם הוא חסר
+            full_model_name = f"models/{model_id}" if not model_id.startswith("models/") else model_id
+            model = genai.GenerativeModel(full_model_name)
             response = model.generate_content([prompt, image])
-            return response.text, model_name  # מחזיר את התשובה ואת שם המודל שהצליח
+            return response.text, full_model_name
         except Exception as e:
             last_error = str(e)
-            continue # נכשל? עובר למודל הבא ברשימה
+            continue # אם נכשל, עובר למודל הבא ברשימה
             
-    st.error(f"כל המודלים נכשלו. שגיאה אחרונה: {last_error}")
+    st.error(f"כל המודלים ברשימה נכשלו. שגיאה אחרונה: {last_error}")
     return None, None
 
 # ==========================================
@@ -86,6 +82,7 @@ st.markdown("""
     .glass-card { background: rgba(30, 41, 59, 0.7); border: 1px solid #38bdf8; border-radius: 15px; padding: 25px; margin-bottom: 20px; }
     .stButton>button { background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); color: white !important; font-weight: 700; border-radius: 10px; border: none; width: 100%; height: 3.5em; }
     label, p, .stMarkdown, h1, h2, h3 { color: white !important; }
+    .stTabs [data-baseweb="tab"] { color: white !important; font-weight: bold; }
     input, textarea { background-color: #1e293b !important; color: white !important; border: 1px solid #38bdf8 !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -97,47 +94,73 @@ init_db()
 # ==========================================
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן", "📊 ארכיון", "⚙️ הגדרות"])
+tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן בכתב יד", "📊 ארכיון תוצאות", "⚙️ הגדרות"])
 
 if 'rubric' not in st.session_state:
-    st.session_state.rubric = "בדוק לפי הבנה עמוקה ודיוק."
+    st.session_state.rubric = "בדוק את התשובות על פי הבנה עמוקה, דיוק בפרטים ושימוש במושגים נכונים."
 
 with tab1:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
+    
     with col1:
         student_name = st.text_input("שם התלמיד:")
         subject = st.text_input("מקצוע:", "תורה")
-        st.session_state.rubric = st.text_area("מחוון בדיקה:", value=st.session_state.rubric, height=200)
+        st.session_state.rubric = st.text_area("מחוון הבדיקה (תשובות נכונות):", value=st.session_state.rubric, height=250)
     
     with col2:
-        file = st.file_uploader("העלה צילום מבחן:", type=['jpg', 'jpeg', 'png'])
+        file = st.file_uploader("העלה צילום מבחן (כתב יד):", type=['jpg', 'jpeg', 'png'])
+        
         if st.button("🚀 התחל בדיקה אוטומטית"):
-            if file and student_name:
-                with st.spinner("מנסה לפענח (בודק מודלים זמינים)..."):
-                    img = Image.open(file)
-                    prompt = f"פענח כתב יד עברי עבור {student_name} ב{subject} לפי מחוון: {st.session_state.rubric}. ענה בעברית."
-                    
-                    # שימוש בפונקציה החכמה
-                    result_text, successful_model = process_with_ai(prompt, img)
-                    
-                    if result_text:
-                        save_to_db(student_name, subject, result_text)
-                        st.info(f"בוצע בהצלחה באמצעות מודל: {successful_model}")
-                        st.markdown("---")
-                        st.markdown(result_text)
+            if not file or not student_name:
+                st.warning("חובה להזין שם תלמיד ולהעלות קובץ תמונה.")
             else:
-                st.warning("נא להזין שם ולהעלות תמונה.")
+                with st.spinner("מנסה לפענח באמצעות רשימת המודלים שסיפקת..."):
+                    try:
+                        img = Image.open(file)
+                        prompt = f"""
+                        אתה מורה מומחה לפענוח כתב יד עברי.
+                        משימה:
+                        1. פענח את כתב היד בתמונה עבור התלמיד {student_name} בנושא {subject}.
+                        2. השווה את התשובות למחוון הבא: {st.session_state.rubric}
+                        
+                        ענה בעברית בפורמט הבא:
+                        ## תוצאות עבור {student_name}
+                        **ציון סופי:** [מספר]
+                        **מה היה טוב:** [פירוט]
+                        **נקודות לשיפור:** [פירוט]
+                        **הטקסט שפענחת מהתמונה:** [הטקסט המלא]
+                        """
+                        
+                        result_text, used_model = process_with_ai(prompt, img)
+                        
+                        if result_text:
+                            save_to_db(student_name, subject, result_text)
+                            st.success(f"הבדיקה הושלמה בהצלחה באמצעות {used_model}")
+                            st.markdown("---")
+                            st.markdown(result_text)
+                    except Exception as e:
+                        st.error(f"שגיאה בניתוח המבחן: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab2:
-    st.dataframe(load_from_db(), use_container_width=True)
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    df = load_from_db()
+    if not df.empty:
+        st.dataframe(df, use_container_width=True)
+        csv = df.to_csv(index=False).encode('utf-8-sig')
+        st.download_button("📥 הורד ארכיון (CSV)", data=csv, file_name="history.csv")
+    else:
+        st.info("הארכיון ריק כרגע.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 with tab3:
-    if st.button("🔴 מחיקת ארכיון"):
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    if st.button("🔴 מחיקת כל הארכיון לצמיתות"):
         conn = sqlite3.connect('results.db')
         conn.execute("DELETE FROM exams")
         conn.commit()
         conn.close()
-        st.success("הארכיון נמחק.")
+        st.success("כל הנתונים נמחקו.")
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
