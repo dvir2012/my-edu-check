@@ -75,7 +75,7 @@ init_db()
 # ==========================================
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן בכתב יד", "📊 ארכיון תוצאות", "⚙️ הגדרות מערכת"])
+tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן בכתב יד", "📊 ארכיון תוצאות", "⚙️ הגדרות "])
 
 if 'rubric' not in st.session_state:
     st.session_state.rubric = "בדוק את התשובות על פי הבנה עמוקה, דיוק בפרטים ושימוש במושגים נכונים."
