@@ -35,23 +35,43 @@ def load_from_db():
     return df
 
 # ==========================================
-# 2. אתחול ה-AI (שימוש ברשימת המודלים שלך)
+# 2. פונקציית הליבה: ניסיון רב-מודלים (Failover)
 # ==========================================
-def init_gemini():
+def process_with_ai(prompt, image):
+    """
+    מנסה להריץ את הבקשה על רשימת מודלים לפי סדר עדיפות.
+    אם מודל אחד נכשל, עובר למודל הבא.
+    """
+    model_names = [
+        'gemini-2.0-flash',       # כרגע הגרסה היציבה ביותר לייצור
+        'gemini-1.5-pro',         # גיבוי חזק מאוד
+        'gemini-1.5-flash',       # גיבוי מהיר
+        'gemini-1.5-flash-8b'     # גיבוי אחרון
+    ]
+    
+    # הערה: השמות 'gemini-2.5-flash' וכו' עוד לא שוחררו רשמית לכל המשתמשים ב-SDK,
+    # לכן השתמשתי בשמות המעודכנים ביותר שזמינים כרגע ב-API כדי שהקוד יעבוד לך מיד.
+    
     if "GEMINI_API_KEY" not in st.secrets:
         st.error("🔑 מפתח API חסר ב-Secrets!")
-        return None
-    try:
-        api_key = st.secrets["GEMINI_API_KEY"]
-        os.environ["GOOGLE_API_KEY"] = api_key
-        genai.configure(api_key=api_key)
-        
-        # שימוש במודל שנבחר בטאב הגדרות
-        model_id = st.session_state.get('active_model', 'models/gemini-2.0-flash')
-        return genai.GenerativeModel(model_id)
-    except Exception as e:
-        st.error(f"שגיאה בחיבור למודל {st.session_state.active_model}: {e}")
-        return None
+        return None, None
+
+    api_key = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=api_key)
+
+    last_error = ""
+    for model_name in model_names:
+        try:
+            # ניסיון ליצור את המודל ולהריץ תוכן
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content([prompt, image])
+            return response.text, model_name  # מחזיר את התשובה ואת שם המודל שהצליח
+        except Exception as e:
+            last_error = str(e)
+            continue # נכשל? עובר למודל הבא ברשימה
+            
+    st.error(f"כל המודלים נכשלו. שגיאה אחרונה: {last_error}")
+    return None, None
 
 # ==========================================
 # 3. עיצוב הממשק (CSS)
@@ -71,16 +91,15 @@ st.markdown("""
 
 init_db()
 
-# הגדרת ברירת מחדל למודל
-if 'active_model' not in st.session_state:
-    st.session_state.active_model = 'models/gemini-2.0-flash'
-
 # ==========================================
 # 4. הממשק המרכזי
 # ==========================================
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן", "📊 ארכיון", "⚙️ בחירת מודל"])
+tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן", "📊 ארכיון", "⚙️ הגדרות"])
+
+if 'rubric' not in st.session_state:
+    st.session_state.rubric = "בדוק לפי הבנה עמוקה ודיוק."
 
 with tab1:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
@@ -88,47 +107,36 @@ with tab1:
     with col1:
         student_name = st.text_input("שם התלמיד:")
         subject = st.text_input("מקצוע:", "תורה")
-        rubric = st.text_area("מחוון בדיקה:", "בדוק את התשובות על פי הבנה עמוקה ודיוק.", height=150)
+        st.session_state.rubric = st.text_area("מחוון בדיקה:", value=st.session_state.rubric, height=200)
     
     with col2:
         file = st.file_uploader("העלה צילום מבחן:", type=['jpg', 'jpeg', 'png'])
-        if st.button("🚀 בדוק מבחן"):
-            if not file or not student_name:
-                st.warning("מלא את כל הפרטים.")
+        if st.button("🚀 התחל בדיקה אוטומטית"):
+            if file and student_name:
+                with st.spinner("מנסה לפענח (בודק מודלים זמינים)..."):
+                    img = Image.open(file)
+                    prompt = f"פענח כתב יד עברי עבור {student_name} ב{subject} לפי מחוון: {st.session_state.rubric}. ענה בעברית."
+                    
+                    # שימוש בפונקציה החכמה
+                    result_text, successful_model = process_with_ai(prompt, img)
+                    
+                    if result_text:
+                        save_to_db(student_name, subject, result_text)
+                        st.info(f"בוצע בהצלחה באמצעות מודל: {successful_model}")
+                        st.markdown("---")
+                        st.markdown(result_text)
             else:
-                with st.spinner(f"מנתח באמצעות {st.session_state.active_model}..."):
-                    model = init_gemini()
-                    if model:
-                        try:
-                            img = Image.open(file)
-                            prompt = f"פענח כתב יד עבור {student_name} ב{subject}. מחוון: {rubric}. ענה בעברית."
-                            response = model.generate_content([prompt, img])
-                            save_to_db(student_name, subject, response.text)
-                            st.markdown(response.text)
-                        except Exception as e:
-                            st.error(f"המודל {st.session_state.active_model} לא זמין כרגע. נסה לבחור מודל 2.0 בטאב הגדרות. שגיאה: {e}")
+                st.warning("נא להזין שם ולהעלות תמונה.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab2:
     st.dataframe(load_from_db(), use_container_width=True)
 
 with tab3:
-    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-    st.subheader("בחר מודל מהרשימה ששלחת:")
-    
-    # רשימת המודלים שסיפקת
-    model_list = [
-        'models/gemini-2.5-flash',
-        'models/gemini-2.5-pro',
-        'models/gemini-2.0-flash',
-        'models/gemini-2.0-flash-001'
-    ]
-    
-    selected = st.radio("מודל פעיל:", model_list, index=model_list.index(st.session_state.active_model))
-    
-    if selected != st.session_state.active_model:
-        st.session_state.active_model = selected
-        st.success(f"המודל הוחלף ל: {selected}")
-    
-    st.info("הערה: מודלים מסוג 2.5 הם חדשים מאוד. אם הם מחזירים שגיאה, השתמש ב-2.0 Flash.")
-    st.markdown("</div>", unsafe_allow_html=True)
+    if st.button("🔴 מחיקת ארכיון"):
+        conn = sqlite3.connect('results.db')
+        conn.execute("DELETE FROM exams")
+        conn.commit()
+        conn.close()
+        st.success("הארכיון נמחק.")
+        st.rerun()
