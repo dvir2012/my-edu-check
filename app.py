@@ -28,7 +28,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # רשימת מקצועות לבחירה
-SUBJECTS_LIST = ["תורה", "נביא", "דינים", "גמרא", "חשבון", "אנגלית", "שפה", "אחר"]
+SUBJECTS_LIST = ["תורה", "נביא", "הלכה", "גמרא", "חשבון", "אנגלית", "שפה","כישורי חיים", "מחשבת ישראל", "היסטוריה", "מדעים", "אזרחות", "אחר"]
 
 # ==========================================
 # 1. בסיס נתונים (SQLite)
@@ -61,27 +61,26 @@ def load_from_db(subject_filter="הכל"):
    return df
 
 # ==========================================
-# 2. הגדרות AI (המודלים המקוריים שלך - ללא שינוי)
+# 2. הגדרות AI (עם רשימת המודלים המדויקת שביקשת)
 # ==========================================
 def init_gemini():
    if "GEMINI_API_KEY" not in st.secrets:
-       st.error("🔑מפתח API חסר ב-Secrets! אנא הוסף אותו בלוח הבקרה של Streamlit.")
+       st.error("🔑מפתח API חסר ב-Secrets!")
        return None
   
    api_key = st.secrets["GEMINI_API_KEY"]
-  
-   if not api_key or api_key == "הכנס_כאן_את_מפתח_ה_API_שלך" or len(api_key)< 20:
-       st.error("🔑מפתח API לא תקין! אנא ודא שהכנסת מפתח תקין בקובץ .streamlit/secrets.toml")
-       st.info("💡קבל מפתח מ: https://aistudio.google.com/")
+   if not api_key or len(api_key) < 20:
+       st.error("🔑מפתח API לא תקין!")
        return None
   
    try:
        genai.configure(api_key=api_key)
+       # רשימת המודלים בדיוק כפי שביקשת:
        model_names =[
-           'models/gemini-2.5-flash',
-           'models/gemini-2.5-pro',
-           'models/gemini-2.0-flash',
-           'models/gemini-2.0-flash-001',
+            'models/gemini-2.5-flash',
+            'models/gemini-2.5-pro',
+            'models/gemini-2.0-flash',
+            'models/gemini-2.0-flash-001',
        ]
       
        last_error = None
@@ -93,14 +92,7 @@ def init_gemini():
                last_error = e
                continue
       
-       error_msg = str(last_error) if last_error else "שגיאה לא ידועה"
-       if "404" in error_msg or "not found" in error_msg.lower():
-          st.error(f"❌ שגיאת מודל: {error_msg}")
-       elif "401" in error_msg or "403" in error_msg or "permission" in error_msg.lower():
-          st.error(f"❌ שגיאת אימות: {error_msg}")
-       else:
-          st.error(f"❌ שגיאה בחיבור ל-Gemini: {error_msg}")
-      
+       st.error(f"❌ שגיאה בחיבור למודלים: {last_error}")
        return None
       
    except Exception as e:
@@ -108,9 +100,9 @@ def init_gemini():
       return None
 
 # ==========================================
-# 3. עיצוב הממשק (CSS המקורי שלך)
+# 3. עיצוב הממשק
 # ==========================================
-st.set_page_config(page_title="EduCheck AI Pro", page_icon="🎓",layout="wide")
+st.set_page_config(page_title="EduCheck AI Pro", page_icon="🎓", layout="wide")
 
 st.markdown("""
 <style>
@@ -147,24 +139,21 @@ with tab1:
        if rubric_file and st.button("🔍 פענח מחוון מהקובץ"):
            model = init_gemini()
            if model:
-               with st.spinner("מפענח מחוון מהקובץ..."):
+               with st.spinner("מפענח מחוון..."):
                    img_r = Image.open(rubric_file)
-                   res_r = model.generate_content(["פענח את הטקסט מהקובץ הזה והפוך אותו למחוון תשובות:", img_r])
+                   res_r = model.generate_content(["פענח את הטקסט מהקובץ והפוך אותו למחוון תשובות:", img_r])
                    st.session_state.rubric = res_r.text
-                   st.success("המחוון עודכן בהצלחה!")
+                   st.success("המחוון עודכן!")
 
        if st.button("✨ צור מחוון אוטומטי"):
           model = init_gemini()
           if model:
               with st.spinner("מייצר מחוון..."):
-                  try:
-                       res = model.generate_content(f"צור מחוון תשובות מפורט למבחן בנושא {subject} בעברית.")
-                       st.session_state.rubric = res.text
-                       st.success("✅ מחוון נוצר בהצלחה!")
-                  except Exception as e:
-                       st.error(f"שגיאה ביצירת מחוון: {e}")
+                  res = model.generate_content(f"צור מחוון תשובות מפורט למבחן בנושא {subject} בעברית.")
+                  st.session_state.rubric = res.text
+                  st.success("✅ מחוון נוצר!")
 
-       st.session_state.rubric = st.text_area("מחוון הבדיקה (תשובות נכונות):", value=st.session_state.rubric, height=200)
+       st.session_state.rubric = st.text_area("מחוון הבדיקה:", value=st.session_state.rubric, height=200)
   
    with col2:
        upload_method = st.radio("בחר שיטת העלאת מבחן:", ["העלאת קובץ", "צילום במצלמה"])
@@ -177,12 +166,27 @@ with tab1:
            if not file or not student_name:
                st.warning("נא להזין שם תלמיד ולהעלות קובץ.")
            else:
-               with st.spinner("מפענח כתב יד ומנתח תוצאות..."):
+               with st.spinner("מנתח תוצאות (בצורה שקטה)..."):
                    try:
                        img = Image.open(file)
                        model = init_gemini()
                        if model:
-                           prompt = f"משימה: פענוח כתב יד עברי ובדיקת מבחן עבור {student_name}.\nנושא: {subject}\nמחוון: {st.session_state.rubric}\nענה בעברית עם ציון סופי, פירוט וטקסט שזוהה."
+                           # הפרומפט המעודכן שלא מציג את הטקסט המפוענח
+                           prompt = f"""
+                           משימה: פענח את כתב היד בתמונה עבור {student_name}, השווה למחוון וקבע ציון.
+                           נושא: {subject}
+                           מחוון: {st.session_state.rubric}
+                           
+                           הוראה חשובה: בצע את פענוח כתב היד בלב. אל תציג את הטקסט שזיהית למורה בתשובה הסופית.
+                           השתמש בפענוח רק כדי לקבוע את התוצאות הבאות:
+                           
+                           ענה בעברית בפורמט הבא בלבד:
+                           ## תוצאות עבור {student_name}
+                           **ציון סופי:** [מספר]
+                           **מה היה טוב:** [פירוט]
+                           **נקודות לשיפור:** [פירוט]
+                           """
+                           
                            max_size = 2048
                            if img.size[0] > max_size or img.size[1] > max_size:
                                ratio = min(max_size/ img.size[0], max_size / img.size[1])
@@ -190,7 +194,7 @@ with tab1:
                           
                            response = model.generate_content([prompt, img])
                            save_to_db(student_name, subject, response.text)
-                           st.success("הניתוח הושלם!")
+                           st.success("הבדיקה הושלמה!")
                            st.markdown(response.text)
                    except Exception as e:
                        st.error(f"❌ שגיאה בניתוח: {e}")
@@ -202,27 +206,18 @@ with tab2:
    df = load_from_db(filter_sub)
    if not df.empty:
        st.dataframe(df, use_container_width=True)
-       csv = df.to_csv(index=False).encode('utf-8-sig')
-       st.download_button("📥 הורד אקסל (CSV)", data=csv, file_name=f"grades.csv")
+       st.download_button("📥 הורד אקסל (CSV)", data=df.to_csv(index=False).encode('utf-8-sig'), file_name="grades.csv")
    else:
        st.info("אין נתונים בארכיון.")
    st.markdown("</div>", unsafe_allow_html=True)
 
 with tab3:
    st.markdown("<div class='glass-card'>",unsafe_allow_html=True)
-   
-   # כפתור התנתקות (חדש)
    if st.button("🔓 התנתקות מהמערכת"):
        st.session_state.authenticated = False
        st.rerun()
-       
    st.markdown("---")
-   
    if st.button("🔴 מחיקת כל הארכיון"):
-       conn = sqlite3.connect('results.db')
-       conn.execute("DELETE FROM exams")
-       conn.commit()
-       conn.close()
-       st.success("הארכיון נמחק.")
-       st.rerun()
+       conn = sqlite3.connect('results.db'); conn.execute("DELETE FROM exams"); conn.commit(); conn.close()
+       st.success("הארכיון נמחק."); st.rerun()
    st.markdown("</div>", unsafe_allow_html=True)
