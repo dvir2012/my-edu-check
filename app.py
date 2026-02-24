@@ -8,7 +8,7 @@ import sqlite3
 # ==========================================
 # 0. מנגנון 100 סיסמאות
 # ==========================================
-PASSWORDS = [str(i) for i in range(1001, 1101)]
+PASSWORDS = [str(i) for i in range(1000, 10000)]
 
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
@@ -166,7 +166,7 @@ with tab1:
            if not file or not student_name:
                st.warning("נא להזין שם תלמיד ולהעלות קובץ.")
            else:
-               with st.spinner("מנתח תוצאות (בצורה שקטה)..."):
+               with st.spinner(" בודק מבחן"):
                    try:
                        img = Image.open(file)
                        model = init_gemini()
