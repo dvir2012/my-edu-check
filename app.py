@@ -166,7 +166,7 @@ with tab1:
            if not file or not student_name:
                st.warning("נא להזין שם תלמיד ולהעלות קובץ.")
            else:
-               with st.spinner(" בודק מבחן"):
+               with st.spinner("המבחן בבדיקה"):
                    try:
                        img = Image.open(file)
                        model = init_gemini()
