@@ -5,14 +5,38 @@ import pandas as pd
 from datetime import datetime
 import sqlite3
 import hashlib
+import smtplib
+import random
+from email.mime.text import MIMEText
 
 # ==========================================
-# 1. בסיס נתונים (SQLite) - מופרד לפי משתמש
+# 1. פונקציות עזר לאימות (מייל)
+# ==========================================
+def send_otp_email(receiver_email, otp_code):
+    """שליחת קוד אימות למייל של המשתמש"""
+    sender_email = st.secrets["EMAIL_SENDER"]
+    sender_password = st.secrets["EMAIL_PASSWORD"]
+    
+    msg = MIMEText(f"קוד האימות שלך ל-EduCheck AI הוא: {otp_code}")
+    msg['Subject'] = "קוד אימות EduCheck AI"
+    msg['From'] = sender_email
+    msg['To'] = receiver_email
+
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+        return True
+    except Exception as e:
+        st.error(f"שגיאה בשליחת המייל: {e}")
+        return False
+
+# ==========================================
+# 2. בסיס נתונים (SQLite)
 # ==========================================
 def init_db(user_id):
     conn = sqlite3.connect('results.db', check_same_thread=False)
     c = conn.cursor()
-    # יצירת טבלה ייחודית לכל מורה
     table_name = f"user_{user_id}"
     c.execute(f'''CREATE TABLE IF NOT EXISTS {table_name}
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,52 +64,34 @@ def load_from_db(user_id):
     conn.close()
     return df
 
-def generate_user_id(phone):
-    # הופך את הטלפון למזהה ייחודי קצר ומוצפן
-    clean_phone = phone.replace("-", "").replace(" ", "")
-    return hashlib.md5(clean_phone.encode()).hexdigest()[:12]
+def generate_user_id(email):
+    return hashlib.md5(email.lower().strip().encode()).hexdigest()[:12]
 
 # ==========================================
-# 2. הגדרות AI (שמות המודלים נשמרו בדיוק כפי שביקשת)
+# 3. הגדרות AI (שמות מודלים מקוריים)
 # ==========================================
 def init_gemini():
     if "GEMINI_API_KEY" not in st.secrets:
         st.error("🔑 מפתח API חסר ב-Secrets!")
         return None
-    
     api_key = st.secrets["GEMINI_API_KEY"]
-    if not api_key or len(api_key) < 20:
-        st.error("🔑 מפתח API לא תקין!")
-        return None
-
     try:
         genai.configure(api_key=api_key)
-        
-        # רשימת המודלים המקורית שלך - לא שונה דבר
         model_names = [
             'models/gemini-2.5-flash',
             'models/gemini-2.5-pro',
             'models/gemini-2.0-flash',
             'models/gemini-2.0-flash-001',
         ]
-        
-        last_error = None
         for model_name in model_names:
             try:
-                model = genai.GenerativeModel(model_name)
-                return model
-            except Exception as e:
-                last_error = e
-                continue
-        
-        st.error(f"❌ שגיאה בחיבור למודלים: {str(last_error)}")
+                return genai.GenerativeModel(model_name)
+            except: continue
         return None
-    except Exception as e:
-        st.error(f"❌ שגיאה כללית: {str(e)}")
-        return None
+    except Exception: return None
 
 # ==========================================
-# 3. עיצוב הממשק (CSS)
+# 4. עיצוב (CSS)
 # ==========================================
 st.set_page_config(page_title="EduCheck AI Pro", page_icon="🎓", layout="wide")
 st.markdown("""
@@ -94,41 +100,60 @@ st.markdown("""
    .white-bold { color: #ffffff !important; font-weight: 900 !important; text-shadow: 2px 2px 4px #000000; }
    .glass-card { background: rgba(30, 41, 59, 0.7); border: 1px solid #38bdf8; border-radius: 15px; padding: 25px; margin-bottom: 20px; }
    .stButton>button { background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); color: white !important; font-weight: 700; border-radius: 10px; border: none; width: 100%; height: 3em; }
-   label, p, .stMarkdown { color: white !important; font-weight: 600; }
-   input { background-color: #1e293b !important; color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 4. מערכת כניסה מאובטחת
+# 5. מערכת כניסה עם OTP
 # ==========================================
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
-    st.session_state.user_id = ""
+    st.session_state.otp_sent = False
+    st.session_state.generated_otp = None
+    st.session_state.user_email = ""
 
 if not st.session_state.authenticated:
     st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI 🔒</h1>", unsafe_allow_html=True)
     with st.container():
         st.markdown("<div class='glass-card' style='max-width: 450px; margin: 0 auto;'>", unsafe_allow_html=True)
-        phone_input = st.text_input("הזן מספר טלפון לכניסה לארכיון האישי שלך:", placeholder="05XXXXXXXX")
-        if st.button("התחבר"):
-            if len(phone_input) >= 9:
-                st.session_state.user_id = generate_user_id(phone_input)
-                st.session_state.authenticated = True
+        
+        if not st.session_state.otp_sent:
+            email_input = st.text_input("הזן כתובת אימייל לכניסה:")
+            if st.button("שלח קוד אימות"):
+                if "@" in email_input and "." in email_input:
+                    otp = str(random.randint(100000, 999999))
+                    if send_otp_email(email_input, otp):
+                        st.session_state.generated_otp = otp
+                        st.session_state.user_email = email_input
+                        st.session_state.otp_sent = True
+                        st.success(f"קוד נשלח לכתובת {email_input}")
+                        st.rerun()
+                else:
+                    st.error("נא להזין אימייל תקין")
+        else:
+            st.info(f"הזן את הקוד שנשלח ל-{st.session_state.user_email}")
+            otp_input = st.text_input("קוד אימות (6 ספרות):")
+            if st.button("התחבר"):
+                if otp_input == st.session_state.generated_otp:
+                    st.session_state.user_id = generate_user_id(st.session_state.user_email)
+                    st.session_state.authenticated = True
+                    st.rerun()
+                else:
+                    st.error("קוד שגוי, נסה שוב")
+            if st.button("חזור/שלח שוב"):
+                st.session_state.otp_sent = False
                 st.rerun()
-            else: st.error("נא להזין מספר טלפון תקין")
+        
         st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
-# אתחול ה-DB למשתמש הספציפי
 current_user = st.session_state.user_id
 init_db(current_user)
 
 # ==========================================
-# 5. הממשק המרכזי
+# 6. הממשק המרכזי
 # ==========================================
 st.markdown("<h1 class='white-bold' style='text-align: center;'>EduCheck AI Pro 🎓</h1>", unsafe_allow_html=True)
-
 tab1, tab2, tab3 = st.tabs(["📄 בדיקת מבחן", "📊 ארכיון ציונים", "⚙️ הגדרות"])
 
 if 'rubric' not in st.session_state:
@@ -137,92 +162,49 @@ if 'rubric' not in st.session_state:
 with tab1:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
-    
     with col1:
         student_name = st.text_input("שם התלמיד:")
+        subjects_list = ["תורה", "נביא", "גמרא", "הלכה", "מתמטיקה", "אנגלית", "אחר..."]
+        subject_choice = st.selectbox("בחר מקצוע:", subjects_list)
+        subject = st.text_input("הזן שם מקצוע:") if subject_choice == "אחר..." else subject_choice
         
-        # בחירת מקצוע בבדיקת מבחן
-        common_subjects = ["תורה", "נביא", "גמרא", "הלכה", "מתמטיקה", "אחר..."]
-        subject_choice = st.selectbox("בחר מקצוע:", common_subjects)
-        if subject_choice == "אחר...":
-            subject = st.text_input("הזן שם מקצוע חדש:")
-        else:
-            subject = subject_choice
-        
-        if st.button("✨ צור מחוון אוטומטי"):
+        if st.button("✨ צור מחוון"):
             model = init_gemini()
             if model:
-                with st.spinner("מייצר מחוון..."):
-                    try:
-                        res = model.generate_content(f"צור מחוון תשובות מפורט למבחן בנושא {subject} בעברית.")
-                        st.session_state.rubric = res.text
-                        st.success("✅ מחוון נוצר בהצלחה!")
-                    except Exception as e:
-                        st.error(f"שגיאה: {str(e)}")
-
-        st.session_state.rubric = st.text_area("מחוון הבדיקה:", value=st.session_state.rubric, height=200)
+                with st.spinner("מייצר..."):
+                    res = model.generate_content(f"צור מחוון למבחן בנושא {subject}.")
+                    st.session_state.rubric = res.text
+        st.session_state.rubric = st.text_area("מחוון:", value=st.session_state.rubric, height=150)
 
     with col2:
-        file = st.file_uploader("העלה צילום מבחן (כתב יד):", type=['jpg', 'jpeg', 'png'])
-        
-        if st.button("🚀 בדוק מבחן"):
-            if not file or not student_name or not subject:
-                st.warning("נא להזין שם תלמיד, מקצוע ולהעלות קובץ.")
-            else:
-                with st.spinner("מפענח ומנתח..."):
-                    try:
-                        img = Image.open(file)
-                        model = init_gemini()
-                        if model:
-                            prompt = f"""
-                            משימה: פענוח כתב יד עברי ובדיקת מבחן עבור {student_name}.
-                            נושא: {subject}
-                            מחוון: {st.session_state.rubric}
-                            ענה בעברית: ## תוצאות עבור {student_name}, **ציון סופי**, **מה היה טוב**, **נקודות לשיפור**, **הטקסט שזוהה**.
-                            """
-                            response = model.generate_content([prompt, img])
-                            save_to_db(current_user, student_name, subject, response.text)
-                            st.markdown(response.text)
-                    except Exception as e:
-                        st.error(f"שגיאה בניתוח: {str(e)}")
+        file = st.file_uploader("העלה צילום:", type=['jpg', 'jpeg', 'png'])
+        if st.button("🚀 בדוק"):
+            if file and student_name:
+                with st.spinner("מנתח..."):
+                    img = Image.open(file)
+                    model = init_gemini()
+                    if model:
+                        prompt = f"בדיקת מבחן עבור {student_name} במקצוע {subject}. מחוון: {st.session_state.rubric}."
+                        response = model.generate_content([prompt, img])
+                        save_to_db(current_user, student_name, subject, response.text)
+                        st.markdown(response.text)
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab2:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     df = load_from_db(current_user)
     if not df.empty:
-        # בחירת מקצוע בארכיון (סינון)
-        unique_subjects = ["הכל"] + list(df['subject'].unique())
-        selected_subject = st.selectbox("סנן לפי מקצוע:", unique_subjects)
-        
-        if selected_subject != "הכל":
-            filtered_df = df[df['subject'] == selected_subject]
-        else:
-            filtered_df = df
-            
-        st.dataframe(filtered_df, use_container_width=True)
-        csv = filtered_df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 הורד אקסל (CSV)", data=csv, file_name=f"grades_{selected_subject}_{current_user}.csv")
-    else:
-        st.info("אין נתונים בארכיון האישי שלך.")
+        all_subjects = ["הכל"] + sorted(df['subject'].unique().tolist())
+        filter_sub = st.selectbox("סינון לפי מקצוע:", all_subjects)
+        display_df = df if filter_sub == "הכל" else df[df['subject'] == filter_sub]
+        st.dataframe(display_df, use_container_width=True)
+    else: st.info("אין נתונים.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab3:
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-    st.subheader("ניהול חשבון")
-    
-    # כפתור התנתקות בתוך הגדרות
-    if st.button("🚪 התנתק מהמערכת"):
+    if st.button("🚪 התנתק"):
         st.session_state.authenticated = False
-        st.session_state.user_id = ""
-        st.rerun()
-    
-    st.markdown("---")
-    if st.button("🔴 מחיקת הארכיון האישי שלי"):
-        conn = sqlite3.connect('results.db')
-        conn.execute(f"DROP TABLE IF EXISTS user_{current_user}")
-        conn.commit()
-        conn.close()
-        st.success("הארכיון שלך נמחק לצמיתות.")
+        st.session_state.otp_sent = False
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
