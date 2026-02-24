@@ -99,11 +99,11 @@ def init_gemini():
 
     # סדר מודלים חכם: מתחילים ב-Flash כדי לחסוך במכסה (Quota)
     model_names =[
-        'models/gemini-2.0-flash', 
+        'models/gemini-2.5-pro', 
         'models/gemini-2.0-flash-001',
         'models/gemini-1.5-flash',
         'models/gemini-2.5-flash',
-        'models/gemini-2.5-pro'
+       'models/gemini-2.0-flash'
     ]
   
     for model_name in model_names:
