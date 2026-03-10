@@ -6,6 +6,7 @@ from datetime import datetime
 import sqlite3
 import time
 import re
+import json
 
 # ==========================================
 # 0. מנגנון סיסמאות והפרדת משתמשים
@@ -44,7 +45,7 @@ def init_db():
                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
                  teacher_id TEXT,
                  date TEXT, student_name TEXT, subject TEXT, result TEXT)''')
-   
+    
     # בדיקה אם עמודת teacher_id קיימת (למניעת קריסה בגרסאות ישנות)
     c.execute("PRAGMA table_info(exams)")
     columns = [column[1] for column in c.fetchall()]
@@ -99,7 +100,7 @@ def init_gemini():
         return None
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
-   
+    
     # הגדרות ליציבות ועקביות הציון
     generation_config = {
         "temperature": 0.0,
@@ -110,7 +111,7 @@ def init_gemini():
 
     # Try to get the first available model
     model_names = get_available_models()
-   
+    
     for model_name in model_names:
         try:
             model = genai.GenerativeModel(model_name=model_name, generation_config=generation_config)
@@ -123,7 +124,7 @@ def init_gemini():
                 continue
             # For other errors, also try next model
             continue
-   
+    
     return None
 
 def generate_content_with_fallback(prompt, image=None):
@@ -137,36 +138,36 @@ def generate_content_with_fallback(prompt, image=None):
         "top_k": 1,
         "max_output_tokens": 2048,
     }
-   
+    
     last_error = None
     for model_name in model_names:
         try:
             model = genai.GenerativeModel(model_name=model_name, generation_config=generation_config)
-           
+            
             # Prepare content
             if image:
                 content = [prompt, image]
             else:
                 content = prompt
-           
+            
             # Try to generate
             response = model.generate_content(content)
             return response
-           
+            
         except Exception as e:
             error_str = str(e)
             error_type = type(e).__name__
-           
+            
             # If it's a NotFound error, try next model
             if error_type == "NotFound" or "404" in error_str or ("not found" in error_str.lower() and "model" in error_str.lower()):
                 last_error = e
                 continue
-           
+            
             # If it's a ResourceExhausted (quota) error, try next model
             elif error_type == "ResourceExhausted" or "ResourceExhausted" in error_str:
                 # Check if it's a permanent quota exhaustion (limit: 0) or rate limit
                 is_permanent_quota = "limit: 0" in error_str
-               
+                
                 if is_permanent_quota:
                     # Quota exhausted for this model - try next model
                     last_error = e
@@ -175,15 +176,15 @@ def generate_content_with_fallback(prompt, image=None):
                     # It's a rate limit (temporary) - also try next model first
                     last_error = e
                     continue
-           
+            
             else:
                 # For other errors, raise immediately
                 raise
-   
+    
     # If all models failed, raise the last error
     if last_error:
         raise last_error
-   
+    
     raise Exception("No models available")
 
 # ==========================================
@@ -219,7 +220,7 @@ with tab1:
     with col1:
         student_name = st.text_input("שם התלמיד:")
         subject = st.selectbox("מקצוע:", SUBJECTS_LIST)
-       
+        
         rubric_file = st.file_uploader("מחוון תשובות (אופציונלי):", type=['jpg', 'jpeg', 'png'])
         if rubric_file and st.button("🔍 פענח מחוון מהקובץ"):
             try:
@@ -233,23 +234,27 @@ with tab1:
                     else:
                         with st.spinner("מפענח..."):
                             img_r = Image.open(rubric_file)
-                           
+                            
                             # Try with retry logic for rate limits and model fallback
                             max_retries = 3
                             retry_delay = 6
                             res_r = None
-                           
+                            
                             for attempt in range(max_retries):
                                 try:
-                                    res_r = generate_content_with_fallback(
-                                        "פענח מחוון תשובות מהתמונה:",
-                                        img_r
-                                    )
+                                    # --- שינוי פרומפט המחוון ל-JSON מובנה ---
+                                    rubric_prompt = """
+                                    פענח את המחוון מהתמונה. עליך להחזיר אך ורק מערך JSON (JSON array) תקין של אובייקטים.
+                                    כל אובייקט ייצג שאלה במחוון ויכיל:
+                                    "שאלה" (מספר השאלה), "תשובה" (התשובה המצופה), "ניקוד" (הניקוד המקסימלי).
+                                    אל תוסיף שום מילה, סימון markdown, או טקסט לפני ואחרי ה-JSON.
+                                    """
+                                    res_r = generate_content_with_fallback(rubric_prompt, img_r)
                                     break
                                 except Exception as retry_error:
                                     error_msg = str(retry_error)
                                     error_type_retry = type(retry_error).__name__
-                                   
+                                    
                                     # Check if it's a rate limit/quota error that can be retried
                                     is_rate_limit = (
                                         error_type_retry == "ResourceExhausted" or
@@ -257,7 +262,7 @@ with tab1:
                                         "retry_delay" in error_msg or
                                         ("429" in error_msg and "quota" in error_msg.lower())
                                     )
-                                   
+                                    
                                     if is_rate_limit and attempt < max_retries - 1:
                                         # Extract retry delay from error message
                                         delay_match = re.search(r'retry in ([\d.]+)s', error_msg, re.IGNORECASE)
@@ -265,25 +270,43 @@ with tab1:
                                             retry_delay = float(delay_match.group(1)) + 1
                                         else:
                                             retry_delay = (attempt + 1) * 6
-                                       
+                                        
                                         time.sleep(retry_delay)
                                         continue
                                     else:
                                         raise
-                           
+                            
                             if not res_r:
                                 raise Exception("Failed to generate content after all retries")
-                           
+                            
                             if res_r and res_r.text:
-                                st.session_state.rubric = res_r.text
-                                st.success("המחוון עודכן!")
+                                # --- מנגנון חילוץ בטוח של המחוון ---
+                                raw_text = res_r.text
+                                start_idx = raw_text.find('[')
+                                end_idx = raw_text.rfind(']')
+                                
+                                if start_idx != -1 and end_idx != -1:
+                                    json_str = raw_text[start_idx:end_idx+1]
+                                    try:
+                                        rubric_data = json.loads(json_str)
+                                        df_rubric = pd.DataFrame(rubric_data)
+                                        st.session_state.rubric = df_rubric.to_markdown(index=False)
+                                        st.success("המחוון עודכן בהצלחה!")
+                                        st.rerun()
+                                    except json.JSONDecodeError:
+                                        st.session_state.rubric = raw_text
+                                        st.warning("המחוון פוענח כטקסט גולמי (ללא טבלה).")
+                                else:
+                                    st.session_state.rubric = raw_text
+                                    st.warning("המחוון פוענח כטקסט גולמי (ללא טבלה).")
+                                # ---------------------------------
                             else:
                                 st.error("❌ לא התקבלה תשובה מה-AI. נסה שוב.")
-                               
+                                
             except Exception as e:
                 error_str = str(e)
                 error_type = type(e).__name__
-               
+                
                 # בדיקה אם זו שגיאת תמונה
                 if "cannot identify image file" in error_str.lower() or "UnidentifiedImageError" in error_type:
                     st.error("❌ הקובץ לא מזוהה כתמונה תקינה. אנא העלה תמונה בפורמט JPG או PNG.")
@@ -306,7 +329,7 @@ with tab1:
     with col2:
         upload_method = st.radio("שיטת העלאה:", ["קובץ", "מצלמה"])
         file = st.file_uploader("העלה מבחן:", type=['jpg', 'jpeg', 'png']) if upload_method == "קובץ" else st.camera_input("צלם מבחן")
-       
+        
         if st.button("🚀 בדוק מבחן"):
             if not file or not student_name:
                 st.warning("נא למלא שם תלמיד ולהעלות קובץ.")
@@ -314,59 +337,103 @@ with tab1:
                 try:
                     with st.spinner("מנתח את המבחן בצורה עקבית..."):
                         img = Image.open(file)
-                       
+                        
                         # Check API key first
                         if "GEMINI_API_KEY" not in st.secrets:
                             st.error("❌ לא ניתן להתחבר ל-Gemini API. בדוק את המפתח API.")
                         else:
-                            # פקודה משודרגת - שלב 1
+                            # --- פקודה משודרגת למבחן עצמו (שלב 1) ---
                             prompt = f"""
                             משימה: מומחה פדגוגי לבדיקת מבחנים בכתב יד.
                             מקצוע: {subject} | שם התלמיד: {student_name}
 
-                            הנחיות עבודה:
-                            1. פענח את כתב היד בתמונה בדייקנות (OCR).
-                            2. השווה כל תשובה למחוון: {st.session_state.rubric}
-                            3. בצע ניתוח שאלה-שאלה וקבע ניקוד יחסי.
+                            הנחיות עבודה קריטיות:
+                            1. זיהוי טקסט (OCR): פענח את כתב היד בתמונה בצורה מדויקת.
+                            2. ניתוח מחוון: השתמש במחוון הבא כקריטריון יחיד לציון: {st.session_state.rubric}
+                            3. בדיקה שאלה-שאלה: לכל שאלה שזוהתה, השווה את תשובת התלמיד למחוון.
+                            4. מתן ניקוד: אם התשובה חלקית, תן ניקוד יחסי והסבר למה.
 
-                            פורמט פלט (Markdown):
+                            פורמט פלט נדרש (Markdown):
                             ## דו"ח בדיקה פדגוגי: {student_name}
                             ---
-                            | מס' שאלה | תשובת התלמיד | ניקוד | הערות המורה |
+                            | מס' שאלה | מה התלמיד כתב | ניקוד | הסבר והערות |
                             | :--- | :--- | :--- | :--- |
-                            | [מספר] | [פענוח] | [X/Y] | [הסבר קצר] |
+                            | [מספר] | [תמצית תשובת התלמיד] | [X/Y] | [למה ירד ניקוד או מה היה חסר] |
 
                             ---
-                            **ציון סופי משוקלל: [ציון]**
+                            **ציון סופי משוקלל: [ציון סופי]**
 
-                            **משוב מעצים:** [חוזקה בולטת]
-                            **נקודות לשיפור:** [נושא ספציפי]
+                            **משוב אישי מעצים:** [כתוב משפט אחד על חוזקה שהפגין התלמיד במבחן זה]
+
+                            **נקודות לשיפור ללמידה הבאה:**
+                            * [נקודה ספציפית שהתלמיד צריך לחזור עליה]
                             """
-                           
+                            # ----------------------------------------
+                            
                             # הקטנת תמונה לחיסכון במכסה
                             img.thumbnail((1600, 1600))
-                           
-                            # ניסיון הפקה עם מנגנון Fallback
+                            
+                            # Try with retry logic for rate limits and model fallback
                             max_retries = 3
+                            retry_delay = 6
                             response = None
-                           
+                            
                             for attempt in range(max_retries):
                                 try:
                                     response = generate_content_with_fallback(prompt, img)
                                     break
                                 except Exception as retry_error:
-                                    time.sleep(6)
-                                    continue
-                           
+                                    error_msg = str(retry_error)
+                                    error_type_retry = type(retry_error).__name__
+                                    
+                                    # Check if it's a rate limit/quota error that can be retried
+                                    is_rate_limit = (
+                                        error_type_retry == "ResourceExhausted" or
+                                        "Please retry in" in error_msg or
+                                        "retry_delay" in error_msg or
+                                        ("429" in error_msg and "quota" in error_msg.lower())
+                                    )
+                                    
+                                    if is_rate_limit and attempt < max_retries - 1:
+                                        # Extract retry delay from error message
+                                        delay_match = re.search(r'retry in ([\d.]+)s', error_msg, re.IGNORECASE)
+                                        if delay_match:
+                                            retry_delay = float(delay_match.group(1)) + 1
+                                        else:
+                                            retry_delay = (attempt + 1) * 6
+                                        
+                                        time.sleep(retry_delay)
+                                        continue
+                                    else:
+                                        raise
+                            
+                            if not response:
+                                raise Exception("Failed to generate content after all retries")
+                            
                             if response and response.text:
                                 save_to_db(student_name, subject, response.text)
                                 st.success("הבדיקה הושלמה!")
                                 st.markdown(response.text)
                             else:
                                 st.error("❌ לא התקבלה תשובה מה-AI. נסה שוב.")
-                               
+                                
                 except Exception as e:
-                    st.error(f"❌ שגיאה בניתוח: {str(e)}")
+                    error_str = str(e)
+                    error_type = type(e).__name__
+                    
+                    # בדיקה אם המודל לא נמצא
+                    if error_type == "NotFound" or "404" in error_str or ("not found" in error_str.lower() and "model" in error_str.lower()):
+                        st.error("❌ המודל לא נמצא או לא זמין. המערכת תנסה מודל אחר אוטומטית - נסה שוב.")
+                    # בדיקה מדויקת של ResourceExhausted
+                    elif error_type == "ResourceExhausted" or "ResourceExhausted" in error_str:
+                        if "free_tier" in error_str.lower() or "limit: 0" in error_str:
+                            st.error("⚠️ המכסה החינמית של Google Gemini API נגמרה. המערכת מנסה מודלים אחרים אוטומטית - נסה שוב בעוד כמה דקות.")
+                        else:
+                            st.error("⚠️ המכסה של גוגל נגמרה לדקה זו. נא להמתין דקה אחת בדיוק ולנסות שוב.")
+                    elif "quota" in error_str.lower() and ("exceeded" in error_str.lower() or "limit" in error_str.lower()):
+                        st.error("⚠️ המכסה של גוגל נגמרה. נא להמתין ולנסות שוב מאוחר יותר.")
+                    else:
+                        st.error(f"❌ שגיאה בניתוח: {error_str}")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab2:
