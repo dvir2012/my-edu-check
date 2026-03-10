@@ -297,7 +297,7 @@ with tab1:
                     else:
                         st.error("⚠️ עומס על השרת של גוגל. נא להמתין כ-60 שניות ולנסות שוב.")
                 elif "quota" in error_str.lower() and ("exceeded" in error_str.lower() or "limit" in error_str.lower()):
-                    st.error("⚠️ המכסה של גוגל נגמרה. נא להמתין ולנסוב שוב מאוחר יותר.")
+                    st.error("⚠️ המכסה של גוגל נגמרה. נא להמתין ולנסות שוב מאוחר יותר.")
                 else:
                     st.error(f"❌ שגיאה בפענוח המחוון: {error_str}")
 
@@ -319,40 +319,35 @@ with tab1:
                         if "GEMINI_API_KEY" not in st.secrets:
                             st.error("❌ לא ניתן להתחבר ל-Gemini API. בדוק את המפתח API.")
                         else:
-                            # --- תחילת שינוי שלב 1 ---
+                            # פקודה משודרגת - שלב 1
                             prompt = f"""
                             משימה: מומחה פדגוגי לבדיקת מבחנים בכתב יד.
                             מקצוע: {subject} | שם התלמיד: {student_name}
 
-                            הנחיות עבודה קריטיות:
-                            1. זיהוי טקסט (OCR): פענח את כתב היד בתמונה בצורה מדויקת.
-                            2. ניתוח מחוון: השתמש במחוון הבא כקריטריון יחיד לציון: {st.session_state.rubric}
-                            3. בדיקה שאלה-שאלה: לכל שאלה שזוהתה, השווה את תשובת התלמיד למחוון.
-                            4. מתן ניקוד: אם התשובה חלקית, תן ניקוד יחסי והסבר למה.
+                            הנחיות עבודה:
+                            1. פענח את כתב היד בתמונה בדייקנות (OCR).
+                            2. השווה כל תשובה למחוון: {st.session_state.rubric}
+                            3. בצע ניתוח שאלה-שאלה וקבע ניקוד יחסי.
 
-                            פורמט פלט נדרש (Markdown):
+                            פורמט פלט (Markdown):
                             ## דו"ח בדיקה פדגוגי: {student_name}
                             ---
-                            | מס' שאלה | מה התלמיד כתב | ניקוד | הסבר והערות |
+                            | מס' שאלה | תשובת התלמיד | ניקוד | הערות המורה |
                             | :--- | :--- | :--- | :--- |
-                            | [מספר] | [תמצית תשובת התלמיד] | [X/Y] | [למה ירד ניקוד או מה היה חסר] |
+                            | [מספר] | [פענוח] | [X/Y] | [הסבר קצר] |
 
                             ---
-                            **ציון סופי משוקלל: [ציון סופי]**
+                            **ציון סופי משוקלל: [ציון]**
 
-                            **משוב אישי מעצים:** [כתוב משפט אחד על חוזקה שהפגין התלמיד במבחן זה]
-
-                            **נקודות לשיפור ללמידה הבאה:**
-                            * [נקודה ספציפית שהתלמיד צריך לחזור עליה]
+                            **משוב מעצים:** [חוזקה בולטת]
+                            **נקודות לשיפור:** [נושא ספציפי]
                             """
-                            # --- סוף שינוי שלב 1 ---
                            
                             # הקטנת תמונה לחיסכון במכסה
                             img.thumbnail((1600, 1600))
                            
-                            # Try with retry logic for rate limits and model fallback
+                            # ניסיון הפקה עם מנגנון Fallback
                             max_retries = 3
-                            retry_delay = 6
                             response = None
                            
                             for attempt in range(max_retries):
@@ -360,32 +355,8 @@ with tab1:
                                     response = generate_content_with_fallback(prompt, img)
                                     break
                                 except Exception as retry_error:
-                                    error_msg = str(retry_error)
-                                    error_type_retry = type(retry_error).__name__
-                                   
-                                    # Check if it's a rate limit/quota error that can be retried
-                                    is_rate_limit = (
-                                        error_type_retry == "ResourceExhausted" or
-                                        "Please retry in" in error_msg or
-                                        "retry_delay" in error_msg or
-                                        ("429" in error_msg and "quota" in error_msg.lower())
-                                    )
-                                   
-                                    if is_rate_limit and attempt < max_retries - 1:
-                                        # Extract retry delay from error message
-                                        delay_match = re.search(r'retry in ([\d.]+)s', error_msg, re.IGNORECASE)
-                                        if delay_match:
-                                            retry_delay = float(delay_match.group(1)) + 1
-                                        else:
-                                            retry_delay = (attempt + 1) * 6
-                                       
-                                        time.sleep(retry_delay)
-                                        continue
-                                    else:
-                                        raise
-                           
-                            if not response:
-                                raise Exception("Failed to generate content after all retries")
+                                    time.sleep(6)
+                                    continue
                            
                             if response and response.text:
                                 save_to_db(student_name, subject, response.text)
@@ -395,22 +366,7 @@ with tab1:
                                 st.error("❌ לא התקבלה תשובה מה-AI. נסה שוב.")
                                
                 except Exception as e:
-                    error_str = str(e)
-                    error_type = type(e).__name__
-                   
-                    # בדיקה אם המודל לא נמצא
-                    if error_type == "NotFound" or "404" in error_str or ("not found" in error_str.lower() and "model" in error_str.lower()):
-                        st.error("❌ המודל לא נמצא או לא זמין. המערכת תנסה מודל אחר אוטומטית - נסה שוב.")
-                    # בדיקה מדויקת של ResourceExhausted
-                    elif error_type == "ResourceExhausted" or "ResourceExhausted" in error_str:
-                        if "free_tier" in error_str.lower() or "limit: 0" in error_str:
-                            st.error("⚠️ המכסה החינמית של Google Gemini API נגמרה. המערכת מנסה מודלים אחרים אוטומטית - נסה שוב בעוד כמה דקות.")
-                        else:
-                            st.error("⚠️ המכסה של גוגל נגמרה לדקה זו. נא להמתין דקה אחת בדיוק ולנסות שוב.")
-                    elif "quota" in error_str.lower() and ("exceeded" in error_str.lower() or "limit" in error_str.lower()):
-                        st.error("⚠️ המכסה של גוגל נגמרה. נא להמתין ולנסות שוב מאוחר יותר.")
-                    else:
-                        st.error(f"❌ שגיאה בניתוח: {error_str}")
+                    st.error(f"❌ שגיאה בניתוח: {str(e)}")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab2:
