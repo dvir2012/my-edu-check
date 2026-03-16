@@ -19,7 +19,8 @@ if 'teacher_id' not in st.session_state:
     st.session_state.teacher_id = None
 
 def login_screen():
-    st.markdown("<h2 style='text-align:center; color:white;'>כניסה למערכת EduCheck</h2>", unsafe_allow_html=True)
+    # שינוי קל בעיצוב השורה הזו כדי שהטקסט ייראה על רקע בהיר
+    st.markdown("<h2 style='text-align:center; color:#0f172a;'>כניסה למערכת EduCheck</h2>", unsafe_allow_html=True)
     pwd = st.text_input("הזן סיסמת מורה:", type="password")
     if st.button("התחבר"):
         if pwd in PASSWORDS:
@@ -199,86 +200,100 @@ st.markdown("""
         font-family: 'Heebo', sans-serif;
     }
     
+    /* רקע בהיר, נקי ומודרני */
     .stApp { 
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        color: white; 
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        color: #1e293b; 
         direction: rtl; 
         text-align: right; 
     }
     
+    /* כותרות - נשאר עם אותו שם קלאס כדי לא לשבור קוד, אבל הצבע שונה לכהה */
     .white-bold { 
-        color: #ffffff !important; 
+        color: #0f172a !important; 
         font-weight: 900 !important; 
-        text-shadow: 0px 4px 10px rgba(0,0,0,0.5); 
+        text-shadow: 1px 1px 3px rgba(0,0,0,0.05); 
         margin-bottom: 1.5rem;
     }
     
+    /* כרטיסיות נקיות ולבנות עם צל עדין */
     .glass-card { 
-        background: rgba(30, 41, 59, 0.6); 
+        background: rgba(255, 255, 255, 0.85); 
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(56, 189, 248, 0.3); 
+        border: 1px solid #cbd5e1; 
         border-radius: 20px; 
         padding: 30px; 
         margin-bottom: 25px; 
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-        transition: transform 0.3s ease, border-color 0.3s ease;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+        transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
     }
     
     .glass-card:hover {
-        border-color: rgba(56, 189, 248, 0.6);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        border-color: #94a3b8;
     }
     
+    /* כפתורים בצבעים חיים ובולטים */
     .stButton>button { 
-        background: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%); 
+        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); 
         color: white !important; 
         font-weight: 800; 
         border-radius: 12px; 
         border: none; 
         height: 3.2em; 
         transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
     }
     
     .stButton>button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
-        background: linear-gradient(135deg, #7dd3fc 0%, #1d4ed8 100%);
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+        background: linear-gradient(135deg, #6366f1 0%, #2563eb 100%);
     }
     
+    /* טקסט כללי ותוויות */
     label, p, .stMarkdown { 
-        color: #f8fafc !important; 
+        color: #334155 !important; 
         font-weight: 600; 
     }
     
-    /* שדות טקסט ובחירה */
+    /* שדות טקסט ובחירה בערכת נושא בהירה */
     .stTextInput>div>div>input, .stSelectbox>div>div>div, .stTextArea>div>div>textarea {
-        background-color: rgba(15, 23, 42, 0.6) !important;
-        color: white !important;
-        border: 1px solid #475569 !important;
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+        border: 1px solid #cbd5e1 !important;
         border-radius: 8px;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
     }
     
     .stTextInput>div>div>input:focus, .stSelectbox>div>div>div:focus, .stTextArea>div>div>textarea:focus {
-        border-color: #38bdf8 !important;
-        box-shadow: 0 0 0 1px #38bdf8 !important;
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
     }
 
-    /* עיצוב כרטיסיות (Tabs) */
+    /* עיצוב כרטיסיות (Tabs) מודרני */
     .stTabs [data-baseweb="tab-list"] {
         gap: 15px;
+        border-bottom: 2px solid #e2e8f0;
     }
     .stTabs [data-baseweb="tab"] {
         background-color: transparent;
         border-radius: 10px 10px 0 0;
-        color: #94a3b8 !important;
+        color: #64748b !important;
         font-weight: 600;
         padding: 10px 15px;
+        transition: all 0.2s ease;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #f8fafc;
+        color: #334155 !important;
     }
     .stTabs [aria-selected="true"] {
-        color: #38bdf8 !important;
+        color: #4f46e5 !important;
         font-weight: 800 !important;
-        border-bottom: 3px solid #38bdf8 !important;
+        border-bottom: 3px solid #4f46e5 !important;
+        background-color: #eef2ff;
     }
 </style>
 """, unsafe_allow_html=True)
