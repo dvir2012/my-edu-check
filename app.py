@@ -193,11 +193,93 @@ def generate_content_with_fallback(prompt, image=None):
 st.set_page_config(page_title="EduCheck AI Pro", page_icon="🎓", layout="wide")
 st.markdown("""
 <style>
-    .stApp { background-color: #0f172a; color: white; direction: rtl; text-align: right; }
-    .white-bold { color: #ffffff !important; font-weight: 900 !important; text-shadow: 2px 2px 4px #000000; }
-    .glass-card { background: rgba(30, 41, 59, 0.7); border: 1px solid #38bdf8; border-radius: 15px; padding: 25px; margin-bottom: 20px; }
-    .stButton>button { background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); color: white !important; font-weight: 700; border-radius: 10px; border: none; height: 3em; }
-    label, p, .stMarkdown { color: white !important; font-weight: 600; }
+    @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800;900&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Heebo', sans-serif;
+    }
+    
+    .stApp { 
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: white; 
+        direction: rtl; 
+        text-align: right; 
+    }
+    
+    .white-bold { 
+        color: #ffffff !important; 
+        font-weight: 900 !important; 
+        text-shadow: 0px 4px 10px rgba(0,0,0,0.5); 
+        margin-bottom: 1.5rem;
+    }
+    
+    .glass-card { 
+        background: rgba(30, 41, 59, 0.6); 
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(56, 189, 248, 0.3); 
+        border-radius: 20px; 
+        padding: 30px; 
+        margin-bottom: 25px; 
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        transition: transform 0.3s ease, border-color 0.3s ease;
+    }
+    
+    .glass-card:hover {
+        border-color: rgba(56, 189, 248, 0.6);
+    }
+    
+    .stButton>button { 
+        background: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%); 
+        color: white !important; 
+        font-weight: 800; 
+        border-radius: 12px; 
+        border: none; 
+        height: 3.2em; 
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+    }
+    
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+        background: linear-gradient(135deg, #7dd3fc 0%, #1d4ed8 100%);
+    }
+    
+    label, p, .stMarkdown { 
+        color: #f8fafc !important; 
+        font-weight: 600; 
+    }
+    
+    /* שדות טקסט ובחירה */
+    .stTextInput>div>div>input, .stSelectbox>div>div>div, .stTextArea>div>div>textarea {
+        background-color: rgba(15, 23, 42, 0.6) !important;
+        color: white !important;
+        border: 1px solid #475569 !important;
+        border-radius: 8px;
+    }
+    
+    .stTextInput>div>div>input:focus, .stSelectbox>div>div>div:focus, .stTextArea>div>div>textarea:focus {
+        border-color: #38bdf8 !important;
+        box-shadow: 0 0 0 1px #38bdf8 !important;
+    }
+
+    /* עיצוב כרטיסיות (Tabs) */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 15px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: transparent;
+        border-radius: 10px 10px 0 0;
+        color: #94a3b8 !important;
+        font-weight: 600;
+        padding: 10px 15px;
+    }
+    .stTabs [aria-selected="true"] {
+        color: #38bdf8 !important;
+        font-weight: 800 !important;
+        border-bottom: 3px solid #38bdf8 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
